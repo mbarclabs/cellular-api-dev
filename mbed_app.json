@@ -1,0 +1,23 @@
+{
+    "config": {
+        "buffer-size": { "value": 0 }
+    },
+    "macros": ["OS_MAINSTKSIZE=512"],
+    "target_overrides": {
+        "*": {
+            "lwip.ipv4-enabled": true,
+            "lwip.ipv6-enabled": false,
+            "lwip.ethernet-enabled": false,
+            "lwip.ppp-enabled": true,
+            "lwip.tcp-enabled": false,
+            "target.features_add": ["LWIP"],
+            "platform.stdio-convert-newlines": true,
+            "platform.stdio-baud-rate": 115200,
+            "platform.default-serial-baud-rate": 115200, 
+            "lwip.debug-enabled":false,
+            "lwip.enable-ppp-trace": false,
+            "lwip.use-mbed-trace": false,
+            "mbed-trace.enable": 1
+        }
+    }
+}
