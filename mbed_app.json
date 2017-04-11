@@ -1,6 +1,8 @@
 {
     "config": {
-        "buffer-size": { "value": 0 }
+        "buffer-size": { "value": 0 },
+        "platform": { "help": "Options: UBLOX, MTS_DRAGONFLY",
+                      "value": "UBLOX"}
     },
     "macros": ["OS_MAINSTKSIZE=512"],
     "target_overrides": {
@@ -10,13 +12,13 @@
             "lwip.ethernet-enabled": false,
             "lwip.ppp-enabled": true,
             "lwip.tcp-enabled": false,
-            "target.features_add": ["LWIP"],
+            "target.features_add": ["LWIP", "COMMON_PAL"],
             "platform.stdio-convert-newlines": true,
-            "platform.stdio-baud-rate": 115200,
+            "platform.stdio-baud-rate": 9600,
             "platform.default-serial-baud-rate": 115200, 
-            "lwip.debug-enabled":false,
-            "lwip.enable-ppp-trace": false,
-            "lwip.use-mbed-trace": false,
+            "lwip.debug-enabled": true,
+            "lwip.enable-ppp-trace": true,
+            "lwip.use-mbed-trace": true,
             "mbed-trace.enable": 1
         }
     }

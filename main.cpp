@@ -1,24 +1,19 @@
-/* mbed Microcontroller Library
- * Copyright (c) 2017 u-blox
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 #include "mbed.h"
-#include "UbloxCellularInterface.h"
-#include "C030_api.h"
+#include "BufferedSerial.h"
+
+#define UBLOX           0
+#define MTS_DRAGONFLY   1
+
+#if MBED_CONF_APP_PLATFORM == UBLOX
+#include "TARGET_UBLOX_MODEM/ublox_modem_driver/UbloxCellularInterface.h"
+#include "ublox_low_level_api.h"
+UbloxCellularInterface *iface;
+#elif MBED_CONF_APP_PLATFORM == MTS_DRAGONFLY
+#include "DragonFlyCellularInterface.h"
+DragonFlyCellularInterface *iface;
+#endif
 #include "UDPSocket.h"
-#include "common_functions.h"
+#include "FEATURE_COMMON_PAL/nanostack-libservice/mbed-client-libservice/common_functions.h"
 #if defined(FEATURE_COMMON_PAL)
 #include "mbed_trace.h"
 #define TRACE_GROUP "MAIN"
@@ -27,55 +22,6 @@
 #define tr_info(...)  (void(0)) //dummies if feature common pal is not added
 #define tr_error(...) (void(0)) //dummies if feature common pal is not added
 #endif //defined(FEATURE_COMMON_PAL)
-
-UbloxCellularInterface *iface;
-
-/**
- * @file main.cpp
- */
-
-// LEDs
-DigitalOut gLedRed(LED1);
-DigitalOut gLedGreen(LED2);
-DigitalOut gLedBlue(LED3);
-
-// ----------------------------------------------------------------
-// PRIVATE FUNCTIONS
-// ----------------------------------------------------------------
-
-static void signalGood(void)
-{
-    gLedGreen = 0;
-    gLedRed = 1;
-    gLedBlue = 1;
-    wait_ms(1000);
-    gLedGreen = 1;
-}
-
-static void signalBad(void)
-{
-    gLedRed = 0;
-    gLedGreen = 1;
-    gLedBlue = 1;
-    wait_ms(1000);
-    gLedRed = 1;
-}
-
-static void signalEvent(void)
-{
-    gLedBlue = 0;
-    gLedGreen = 1;
-    gLedRed = 1;
-    wait_ms(1000);
-    gLedBlue = 1;
-}
-
-static void signalOff(void)
-{
-    gLedGreen = 1;
-    gLedRed = 1;
-    gLedBlue = 1;
-}
 
 //#define TERMINAL
 
@@ -114,6 +60,8 @@ static void unlock()
 {
     mtx.unlock();
 }
+
+
 
 // main() runs in its own thread in the OS
 // (note the calls to wait below for delays)
@@ -183,7 +131,11 @@ int do_ntp()
     return -1;
 }
 
+#if MBED_CONF_APP_PLATFORM == UBLOX
 UbloxCellularInterface my_iface(false, true);
+#elif MBED_CONF_APP_PLATFORM == MTS_DRAGONFLY
+DragonFlyCellularInterface my_iface(false);
+#endif
 
 
 nsapi_error_t do_connect()
@@ -266,12 +218,7 @@ void getTime()
         wait_ms(20000);
     }
 }
-#endif // #ifndef TERMINAL
-
-
-// ----------------------------------------------------------------
-// MAIN
-// ----------------------------------------------------------------
+#endif
 
 int main()
 {
@@ -289,28 +236,28 @@ int main()
 
     iface->connection_lost_notification_cb(ppp_connection_down_cb);
 
-    retcode  = do_connect();
-    if (retcode == NSAPI_ERROR_AUTH_FAILURE) {
-        tr_error("Authentication Failure. Exiting application");
-        return -1;
-    }
-    if (retcode != NSAPI_ERROR_OK) {
-        tr_error("No connection. %d, will retry", retcode);
-    }
+   retcode  = do_connect();
+   if (retcode == NSAPI_ERROR_AUTH_FAILURE) {
+       tr_error("Authentication Failure. Exiting application");
+       return -1;
+   }
+   if (retcode != NSAPI_ERROR_OK) {
+       tr_error("No connection. %d, will retry", retcode);
+   }
 
-    getTime();
-#endif // #ifndef TERMINAL
+   getTime();
+#endif
 
 #ifdef TERMINAL
-    BufferedSerial *modem = new BufferedSerial(MDMTXD, MDMRXD, 115200);
-    BufferedSerial *pc = new BufferedSerial(STDIO_UART_TX, STDIO_UART_RX, 115200);
-    pc->write("Hello\r\n", 7);
+   BufferedSerial *modem = new BufferedSerial(MDMTXD, MDMRXD, 115200);
+   BufferedSerial *pc = new BufferedSerial(STDIO_UART_TX, STDIO_UART_RX, 115200);
+   pc->write("Hello\r\n", 7);
     char *rcvd;
-
+#if MBED_CONF_APP_PLATFORM == UBLOX
     DigitalOut pwrOn(MDMPWRON, 1);
-    c030_mdm_powerOff();
+    ublox_mdm_power_off();
     wait(0.5);
-    c030_mdm_powerOn(false);
+    ublox_mdm_power_on(false);
     wait(0.5);
 
     for (int i=0;i<10;i++) {
@@ -320,7 +267,7 @@ int main()
             pwrOn = 1;
             wait_ms(100);
     }
-
+#endif
     pc->write("\r\n", 2);
 
     PollFH fhs[2];
@@ -358,6 +305,5 @@ int main()
      fputc('\n', s);
      }*/
 
-#endif // #ifdef TERMINAL
+#endif
 }
-// End Of File
