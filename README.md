@@ -18,9 +18,9 @@ Change directory to this repo and run:
 
 Change to the `mbed-os` directory and run:
 
-`mbed update cellular_feature_br`
+`mbed update cellular_feature_br_ublox`
 
-...to switch to use the `cellular_feature_br` branch.
+...to switch to use the `cellular_feature_br_ublox` branch.
 
 Set the target and the toolchain that you want to use, which should be `UBLOX_C030` and one of `GCC_ARM`, `ARM` or `IAR`.
 
