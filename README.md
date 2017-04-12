@@ -22,11 +22,11 @@ Change to the `mbed-os` directory and run:
 
 ...to switch to use the `cellular_feature_br_ublox` branch.
 
-Set the target and the toolchain that you want to use, which should be `UBLOX_C030` and one of `GCC_ARM`, `ARM` or `IAR`.
+Set the target and the toolchain that you want to use, which should be `UBLOX_C030_U201` and one of `GCC_ARM`, `ARM` or `IAR`.
 
 You can set the target and toolchain for this application once by entering the following two commands (while in the top-level directory of the cloned repo):
 
-`mbed target UBLOX_C030`
+`mbed target UBLOX_C030_U201`
 
 `mbed toolchain ARM`
 
