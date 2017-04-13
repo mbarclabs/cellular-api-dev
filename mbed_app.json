@@ -2,8 +2,7 @@
     "config": {
         "buffer-size": { "value": 0 },
         "platform": { "help": "Options: UBLOX, MTS_DRAGONFLY",
-                      "value": "UBLOX"},
-        "apn-lookup": true
+                      "value": "UBLOX"}
     },
     "macros": ["OS_MAINSTKSIZE=512", "USE_DEBUG_8MHz_XTAL"],
     "target_overrides": {
