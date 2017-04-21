@@ -4,7 +4,7 @@
         "platform": { "help": "Options: UBLOX, MTS_DRAGONFLY",
                       "value": "UBLOX"}
     },
-    "macros": ["OS_MAINSTKSIZE=512", "USE_DEBUG_8MHz_XTAL"],
+    "macros": ["OS_MAINSTKSIZE=512"],
     "target_overrides": {
         "*": {
             "lwip.ipv4-enabled": true,
@@ -19,9 +19,7 @@
             "lwip.debug-enabled": false,
             "lwip.enable-ppp-trace": false,
             "lwip.use-mbed-trace": false,
-            "mbed-trace.enable": 1,
-            "target.macros_remove": ["HSE_VALUE=12000000"],
-            "target.macros_add": ["HSE_VALUE=8000000"]
+            "mbed-trace.enable": 1
         }
     }
 }
