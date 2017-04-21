@@ -115,7 +115,7 @@ int do_ntp(UbloxCellularInterface *pInterface)
 int main()
 {
     bool exit = false;
-    UbloxCellularInterface *pInterface = new UbloxCellularInterface(false, true);
+    UbloxCellularInterface *pInterface = new UbloxCellularInterface(true);
 
     mbed_trace_init();
 
