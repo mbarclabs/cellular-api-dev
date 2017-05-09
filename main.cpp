@@ -1,8 +1,8 @@
 #include "mbed.h"
 #include "BufferedSerial.h"
 
+//#include "TARGET_GENERIC_MODEM/generic_modem_driver/ReferenceCellularInterface.h"
 #include "TARGET_UBLOX_MODEM_GENERIC/ublox_modem_driver/UbloxCellularInterface.h"
-#include "ublox_low_level_api.h"
 #include "UDPSocket.h"
 #include "FEATURE_COMMON_PAL/nanostack-libservice/mbed-client-libservice/common_functions.h"
 #if defined(FEATURE_COMMON_PAL)
@@ -47,6 +47,7 @@ static void unlock()
     mtx.unlock();
 }
 
+//int do_ntp(ReferenceCellularInterface *pInterface)
 int do_ntp(UbloxCellularInterface *pInterface)
 {
     int ntp_values[12] = { 0 };
@@ -112,18 +113,21 @@ int do_ntp(UbloxCellularInterface *pInterface)
     return -1;
 }
 
+#if 0
 int main()
 {
     bool exit = false;
     UbloxCellularInterface *pInterface = new UbloxCellularInterface(true);
+    //ReferenceCellularInterface *pInterface = new ReferenceCellularInterface(true);
 
     mbed_trace_init();
 
     mbed_trace_mutex_wait_function_set(lock);
     mbed_trace_mutex_release_function_set(unlock);
 
-    pInterface->set_credentials("jtm2m");
-    pInterface->connection_lost_notification_cb(ppp_connection_down_cb);
+    pInterface->set_credentials("giffgaff.com", "giffgaff");
+    //pInterface->set_credentials("jtm2m");
+    pInterface->connection_status_cb(ppp_connection_down_cb);
 
     while (!exit) {
         pInterface->connect();
@@ -147,3 +151,4 @@ int main()
         }
     }
 }
+#endif
