@@ -30,17 +30,6 @@
  **********************************************************************/
 
 /**
- * The profile to use.
- */
-#define PROFILE "0"
-
-/**
- * Test if an HTTP profile is OK to use.
- */
-#define IS_PROFILE(p) (((p) >= 0) && (((unsigned int) p) < (sizeof(_httpProfiles)/sizeof(_httpProfiles[0]))) \
-                       && (_httpProfiles[p].handle != HTTP_PROF_ERROR))
-
-/**
  * Check for timeout.
  */
 #define TIMEOUT(t, ms)  ((ms != TIMEOUT_BLOCKING) && (ms < t.read_ms()))
@@ -48,24 +37,6 @@
 /**********************************************************************
  * PROTECTED METHODS: GENERIC
  **********************************************************************/
-
-// Get the IP address of the on-board modem IP stack.
-// Note: the AT interface should be locked before this is called.
-UbloxCellularInterfaceData::IP UbloxCellularInterfaceData::getIpAddress()
-{
-    int a, b, c, d;
-    IP ip = NOIP;
-
-    _at->setTimeout(10000);
-    // +UPSND=<profile_id>,<param_tag>[,<dynamic_param_val>]
-    if (_at->send("AT+UPSND=" PROFILE ",0") &&
-        _at->recv("+UPSND: " PROFILE ",0,\"" IPSTR "\"", &a, &b, &c, &d)) {
-        ip = IPADR(a, b, c, d);
-    }
-    _at->setTimeout(1000);
-
-    return ip;
-}
 
 // Active a connection profile on board the modem.
 // Note: the AT interface should be locked before this is called.
@@ -76,6 +47,7 @@ bool UbloxCellularInterfaceData::activateProfile(const char* apn,
 {
     bool activated = false;
     bool success = false;
+    SocketAddress address;
 
     // Set up the APN
     if (*apn) {
@@ -101,7 +73,7 @@ bool UbloxCellularInterfaceData::activateProfile(const char* apn,
                     // Activate, waiting 180 seconds for the connection to be made
                     if (_at->send("AT+UPSDA=" PROFILE ",3") && _at->recv("OK")) {
                         for (int retries = 0; !activated && (retries < 18); retries++) {
-                            if (getIpAddress() != NOIP) {
+                            if (get_ip_address() != NULL) {
                                 activated = true;
                             }
                         }
@@ -120,14 +92,18 @@ bool UbloxCellularInterfaceData::activateProfileReuseExternal(void)
 {
     bool success = false;
     int cid = -1;
-    int a, b, c, d, t;
+    char ip[NSAPI_IP_SIZE];
+    SocketAddress address;
+    int t;
 
     //+CGDCONT: <cid>,"IP","<apn name>","<ip adr>",0,0,0,0,0,0
-    if (_at->send("AT+CGDCONT?") &&
-        _at->recv("+CGDCONT: %d,\"IP\",\"%*[^\"]\",\"" IPSTR "\",%*d,%*d,%*d,%*d,%*d,%*d",
-                  &t, &a, &b, &c, &d)) {
-        if (IPADR(a, b, c, d) != NOIP) {
-            cid = t;
+    if (_at->send("AT+CGDCONT?")) {
+        if (_at->recv("+CGDCONT: %d,\"IP\",\"%*[^\"]\",\"%" stringify(NSAPI_IP_SIZE) "[^\"]\",%*d,%*d,%*d,%*d,%*d,%*d",
+                      &t, ip)) {
+            // Check if the IP address is valid
+            if (address.set_ip_address(ip)) {
+                cid = t;
+            }
         }
     }
 
@@ -221,7 +197,7 @@ bool UbloxCellularInterfaceData::disconnectModemStack()
     bool success = false;
     LOCK();
 
-    if (getIpAddress() != NOIP) {
+    if (get_ip_address() != NULL) {
         if (_at->send("AT+UPSDA=" PROFILE ",4") && _at->recv("OK")) {
             success = true;
         }
@@ -231,19 +207,484 @@ bool UbloxCellularInterfaceData::disconnectModemStack()
     return success;
 }
 
-
 /**********************************************************************
  * PROTECTED METHODS: SOCKETS
  **********************************************************************/
 
-// Find or create a socket from the list.
-int UbloxCellularInterfaceData::findSocket(int handle)
+// Gain access to us.
+NetworkStack *UbloxCellularInterfaceData::get_stack()
 {
-    int socket = SOCKET_ERROR;
+    return this;
+}
 
-    for (unsigned int x = 0; (socket == SOCKET_ERROR) && (x < sizeof(_sockets) / sizeof(_sockets[0])); x++) {
-        if (_sockets[x].handle == handle) {
-            socket = x;
+// Get the IP address of the on-board modem IP stack.
+const char * UbloxCellularInterfaceData::get_ip_address()
+{
+    LOCK();
+
+    if (_ip == NULL) {
+        // Temporary storage for an IP address string with terminator
+        _ip = (char *) malloc(NSAPI_IP_SIZE);
+        if (_ip != NULL) {
+            memset(_ip, 0, NSAPI_IP_SIZE); // Ensure a terminator
+            // +UPSND=<profile_id>,<param_tag>[,<dynamic_param_val>]
+            if (!_at->send("AT+UPSND=" PROFILE ",0") ||
+                !_at->recv("+UPSND: " PROFILE ",0,\"%" stringify(NSAPI_IP_SIZE) "[^\"]\"", _ip)) {
+                free (_ip);
+                _ip = NULL;
+            }
+        }
+    }
+
+    UNLOCK();
+    return _ip;
+}
+
+// Get the IP address of a host.
+nsapi_error_t UbloxCellularInterfaceData::gethostbyname(const char *host,
+                                                        SocketAddress *address,
+                                                        nsapi_version_t version)
+{
+    nsapi_error_t nsapiError = NSAPI_ERROR_DEVICE_ERROR;
+    char ipAddress[NSAPI_IP_SIZE];
+
+    if (address->set_ip_address(host)) {
+        nsapiError = NSAPI_ERROR_OK;
+    } else {
+        LOCK();
+        memset (ipAddress, 0, sizeof (ipAddress)); // Ensure terminator
+        if (_at->send("AT+UDNSRN=0,\"%s\"", host) && _at->recv("+UDNSRN: \"%" stringify(NSAPI_IP_SIZE) "[^\"]\"", ipAddress)) {
+            if (address->set_ip_address(ipAddress)) {
+                nsapiError = NSAPI_ERROR_OK;
+            }
+        }
+        UNLOCK();
+    }
+
+    return nsapiError;
+}
+
+// Create a socket.
+nsapi_error_t UbloxCellularInterfaceData::socket_open(nsapi_socket_t *handle, nsapi_protocol_t proto)
+{
+    nsapi_error_t nsapiError = NSAPI_ERROR_DEVICE_ERROR;
+    bool success = false;
+    int modemHandle;
+    SockCtrl *socket;
+    LOCK();
+
+    // Find a free socket
+    socket = findSocket();
+    tr_debug("socket_open(%d)", proto);
+
+    if (socket != NULL) {
+        if (proto == NSAPI_UDP) {
+            success = _at->send("AT+USOCR=17");
+        } else if (proto == NSAPI_TCP) {
+            success = _at->send("AT+USOCR=6\r\n");
+        } else  {
+            nsapiError = NSAPI_ERROR_UNSUPPORTED;
+        }
+
+        if (success) {
+            if (_at->recv("+USOCR: %d", &modemHandle) && (modemHandle != SOCKET_UNUSED)) {
+                tr_debug("Socket 0x%8x: handle %d was created", (unsigned int) socket, modemHandle);
+                socket->modemHandle         = modemHandle;
+                socket->timeoutMilliseconds = TIMEOUT_BLOCKING;
+                socket->connected           = false;
+                socket->pending             = 0;
+                *handle = (nsapi_socket_t) socket;
+            } else {
+                nsapiError = NSAPI_ERROR_NO_SOCKET;
+            }
+        }
+    } else {
+        nsapiError = NSAPI_ERROR_NO_MEMORY;
+    }
+
+    UNLOCK();
+    return nsapiError;
+}
+
+// Close a socket.
+nsapi_error_t UbloxCellularInterfaceData::socket_close(nsapi_socket_t handle)
+{
+    nsapi_error_t nsapiError = NSAPI_ERROR_DEVICE_ERROR;
+    SockCtrl *socket = (SockCtrl *) handle;
+
+    tr_debug("socket_close(0x%08x)", (unsigned int) handle);
+
+    if (socket->connected) {
+        if (_at->send("AT+USOCL=%d\r\n", socket->modemHandle) &&
+            _at->recv("OK")) {
+            socket->connected           = false;
+            socket->modemHandle         = SOCKET_UNUSED;
+            socket->timeoutMilliseconds = TIMEOUT_BLOCKING;
+            socket->connected           = false;
+            socket->pending             = 0;
+            nsapiError = NSAPI_ERROR_OK;
+        }
+    } else {
+        nsapiError = NSAPI_ERROR_OK;
+    }
+
+    return nsapiError;
+}
+
+// Bind a specific address to a socket.
+nsapi_error_t UbloxCellularInterfaceData::socket_bind(nsapi_socket_t handle, const SocketAddress &address)
+{
+    nsapi_error_t nsapiError = NSAPI_ERROR_DEVICE_ERROR;
+    SockCtrl *socket = (SockCtrl *) handle;
+
+    tr_debug("socket_bind(0x%08x, %s(:%d))", (unsigned int) handle, address.get_ip_address(), address.get_port());
+
+    if (!socket->connected) {
+        LOCK();
+        socket->connected = _at->send("AT+USOCO=%d,\"%s\",%d", socket->modemHandle, address.get_ip_address(),
+                                      address.get_port()) &&
+                            _at->recv("OK");
+        UNLOCK();
+    } else {
+        nsapiError = NSAPI_ERROR_IS_CONNECTED;
+    }
+
+    return nsapiError;
+}
+
+// Connect to a socket
+nsapi_error_t UbloxCellularInterfaceData::socket_connect(nsapi_socket_t handle, const SocketAddress &address)
+{
+    nsapi_error_t nsapiError = NSAPI_ERROR_DEVICE_ERROR;
+    SockCtrl *socket = (SockCtrl *) handle;
+    LOCK();
+
+    tr_debug("socket_connect(0x%08x, %s(:%d))", (unsigned int) handle, address.get_ip_address(), address.get_port());
+    if (!socket->connected) {
+        if (_at->send("AT+USOCO=%d,\"%s\",%d", socket->modemHandle, address.get_ip_address(), address.get_port()) &&
+            _at->recv("OK")) {
+            socket->connected = true;
+            nsapiError = NSAPI_ERROR_OK;
+        }
+    }
+
+    UNLOCK();
+    return nsapiError;
+}
+
+// Send to a socket.
+nsapi_size_or_error_t UbloxCellularInterfaceData::socket_send(nsapi_socket_t handle, const void *data, nsapi_size_t size)
+{
+    nsapi_size_or_error_t nsapiErrorSize = NSAPI_ERROR_DEVICE_ERROR;
+    bool success = true;
+    const char *buf = (const char *) data;
+    nsapi_size_t blk = MAX_WRITE_SIZE;
+    nsapi_size_t cnt = size;
+    SockCtrl *socket = (SockCtrl *) handle;
+
+    tr_debug("socket_send(0x%08x, , %d)", (unsigned int) handle, size);
+
+    while ((cnt > 0) && success) {
+        if (cnt < blk) {
+            blk = cnt;
+        }
+        LOCK();
+
+        if (socket->connected) {
+            if (_at->send("AT+USOWR=%d,%d", socket->modemHandle, blk) && _at->recv("@")) {
+                wait_ms(50);
+                if ((_at->write(buf, blk) >= (int) blk) &&
+                     _at->recv("OK")) {
+                } else {
+                    success = false;
+                }
+            } else {
+                success = false;
+            }
+        } else {
+            nsapiErrorSize = NSAPI_ERROR_NO_CONNECTION;
+            success = false;
+        }
+
+        UNLOCK();
+        buf += blk;
+        cnt -= blk;
+    }
+
+    if (success) {
+        nsapiErrorSize = size - cnt;
+    }
+
+    return nsapiErrorSize;
+}
+
+// Send to an IP address.
+nsapi_size_or_error_t UbloxCellularInterfaceData::socket_sendto(nsapi_socket_t handle, const SocketAddress &address,
+                                                                const void *data, nsapi_size_t size)
+{
+    nsapi_size_or_error_t nsapiErrorSize = NSAPI_ERROR_DEVICE_ERROR;
+    bool success = true;
+    const char *buf = (const char *) data;
+    nsapi_size_t blk = MAX_WRITE_SIZE;
+    nsapi_size_t cnt = size;
+    SockCtrl *socket = (SockCtrl *) handle;
+
+    tr_debug("socket_sendto(0x%8x, %s(:%d), , %d)", (unsigned int) handle, address.get_ip_address(), address.get_port(), size);
+
+    while ((cnt > 0) && success) {
+        if (cnt < blk) {
+            blk = cnt;
+        }
+        LOCK();
+
+        if (!_at->send("AT+USOST=%d,\"%s\",%d,%d", socket->modemHandle, address.get_ip_address(), address.get_port(), blk) ||
+            !_at->recv("@")) {
+            nsapiErrorSize = NSAPI_ERROR_NO_CONNECTION;
+            success = false;
+        }
+
+        if (success) {
+            wait_ms(50);
+            if ((_at->write((const char *) buf, blk) >= (int) blk) &&
+                _at->recv("OK")) {
+                // Success case
+            } else {
+                nsapiErrorSize = NSAPI_ERROR_NO_CONNECTION;
+                success = false;
+            }
+        }
+
+        UNLOCK();
+        buf += blk;
+        cnt -= blk;
+    }
+
+    if (success) {
+        nsapiErrorSize = size - cnt;
+    }
+
+    return nsapiErrorSize;
+}
+
+// Receive from a socket.
+nsapi_size_or_error_t UbloxCellularInterfaceData::socket_recv(nsapi_socket_t handle,
+                                                              void *data, nsapi_size_t size)
+{
+    nsapi_size_or_error_t nsapiErrorSize = NSAPI_ERROR_DEVICE_ERROR;
+    bool success = true;
+    char *buf = (char *) data;
+    nsapi_size_t blk = MAX_READ_SIZE;
+    nsapi_size_t cnt = 0;
+    char * tmpBuf = NULL;
+    unsigned int sz, sk, readSize;
+    Timer timer;
+    SockCtrl *socket = (SockCtrl *) handle;
+
+    tr_debug("socket_recv(0x%08x, , %d)", (unsigned int) handle, size);
+
+    timer.start();
+    tmpBuf = (char *) malloc(MAX_READ_SIZE);
+
+    if (tmpBuf != NULL) {
+        while (success && (size > 0)) {
+            if (size < blk) {
+                blk = size;
+            }
+            LOCK();
+
+            if (socket->connected) {
+                if (socket->pending < blk) {
+                    blk = socket->pending;
+                }
+                if (blk > 0) {
+                    if (_at->send("AT+USORD=%d,%d", socket->modemHandle, blk) &&
+                        _at->recv("+USORD: %d,%d,", &sk, &sz)) {
+                        MBED_ASSERT (sz <= sizeof (tmpBuf) + 2);
+                        readSize = _at->read(tmpBuf, sz + 2); // +2 for leading and trailing quotes
+                        if ((readSize > 0) &&
+                            (*(tmpBuf + readSize - sz - 2) == '\"' && *(tmpBuf  + readSize - 1) == '\"')) {
+                            memcpy(buf, (tmpBuf + readSize - sz - 1), sz);
+                            socket->pending -= blk;
+                            size -= blk;
+                            cnt += blk;
+                            buf += blk;
+                        }
+                    }
+                } else if (!TIMEOUT(timer, socket->timeoutMilliseconds)) {
+                    wait_ms(8000);  // wait for URCs
+                } else {
+                    size = 0;
+                }
+            } else {
+                nsapiErrorSize = NSAPI_ERROR_NO_CONNECTION;
+                success = false;
+            }
+        }
+
+        UNLOCK();
+        free(tmpBuf);
+    } else {
+        success = false;
+        nsapiErrorSize = NSAPI_ERROR_NO_MEMORY;
+    }
+    timer.stop();
+
+    if (success) {
+        nsapiErrorSize = cnt;
+    }
+    tr_debug("socket_recv: %d \"%*s\"", cnt, cnt, buf - cnt);
+
+    return nsapiErrorSize;
+}
+
+// Receive a packet over a UDP socket.
+nsapi_size_or_error_t UbloxCellularInterfaceData::socket_recvfrom(nsapi_socket_t handle, SocketAddress *address,
+                                                                  void *data, nsapi_size_t size)
+{
+    nsapi_size_or_error_t nsapiErrorSize = NSAPI_ERROR_DEVICE_ERROR;
+    bool success = true;
+    char *buf = (char *) data;
+    nsapi_size_t blk = MAX_READ_SIZE;
+    nsapi_size_t cnt = 0;
+    char ipAddress[NSAPI_IP_SIZE];
+    int port;
+    char * tmpBuf = NULL;
+    unsigned int sz,readSize;
+    Timer timer;
+    SockCtrl *socket = (SockCtrl *) handle;
+
+    tr_debug("socket_recvfrom(0x%08x, %s(:%d), , %d)", (unsigned int) handle, address->get_ip_address(), address->get_port(), size);
+
+    timer.start();
+    tmpBuf = (char *) malloc(MAX_READ_SIZE);
+
+    if (tmpBuf != NULL) {
+        while (success && (size > 0)) {
+            if (size < blk) {
+                blk = size;
+            }
+            LOCK();
+
+            if (socket->connected) {
+                if (socket->pending < blk) {
+                    blk = socket->pending;
+                }
+                if (blk > 0) {
+                    memset (ipAddress, 0, sizeof (ipAddress)); // Ensure terminator
+                    if (_at->send("AT+USORF=%d,%d", socket->modemHandle, blk) &&
+                        _at->recv("+USORF=%d,\"%" stringify(NSAPI_IP_SIZE) "[^\"]\",%d,%d", &(socket->modemHandle),
+                                  ipAddress, &port, &sz)) {
+                        MBED_ASSERT (sz <= sizeof (tmpBuf) + 2);
+                        readSize = _at->read(tmpBuf, sz + 2); // +2 for leading and trailing quotes
+                        if ((readSize > 0) &&
+                            (*(tmpBuf + readSize - sz - 2) == '\"') && *(tmpBuf + readSize - 1) == '\"') {
+                            memcpy(buf, (tmpBuf + readSize - sz - 1), sz);
+                            socket->pending -= blk;
+                            address->set_ip_address(ipAddress);
+                            address->set_port(port);
+                            cnt += blk;
+                            buf += blk;
+                            size = 0; // done
+                        }
+                    } else {
+                        nsapiErrorSize = NSAPI_ERROR_NO_CONNECTION;
+                        success = false;
+                    }
+                } else if (!TIMEOUT(timer, socket->timeoutMilliseconds)) {
+                    wait_ms(8000);  // wait for URCs
+                } else {
+                    size = 0;
+                }
+            } else {
+                nsapiErrorSize = NSAPI_ERROR_NO_CONNECTION;
+                success = false;
+            }
+
+            UNLOCK();
+        }
+        free(tmpBuf);
+
+    } else {
+        success = false;
+        nsapiErrorSize = NSAPI_ERROR_NO_MEMORY;
+    }
+    timer.stop();
+
+    if (success) {
+        nsapiErrorSize = cnt;
+    }
+    tr_debug("socket_recv: %d \"%*s\"", cnt, cnt, buf - cnt);
+
+    return nsapiErrorSize;
+}
+
+// Unsupported (TCP server) functions.
+nsapi_error_t UbloxCellularInterfaceData::socket_listen(nsapi_socket_t handle, int backlog)
+{
+    return NSAPI_ERROR_UNSUPPORTED;
+}
+nsapi_error_t UbloxCellularInterfaceData::socket_accept(nsapi_socket_t server, nsapi_socket_t *handle, SocketAddress *address)
+{
+    return NSAPI_ERROR_UNSUPPORTED;
+}
+void UbloxCellularInterfaceData::socket_attach(nsapi_socket_t handle, void (*callback)(void *), void *data)
+{
+}
+
+// Determine if there's anything to read.
+nsapi_size_or_error_t UbloxCellularInterfaceData::socket_readable(nsapi_socket_t handle)
+{
+    nsapi_size_or_error_t nsapiSizeError = NSAPI_ERROR_DEVICE_ERROR;
+    SockCtrl *socket = (SockCtrl *) handle;
+
+    tr_debug("socket_readable(0x%08x)", (unsigned int) handle);
+    if (socket->connected) {
+        // Allow time to receive unsolicited commands
+        wait_ms(8000);
+        if (socket->connected) {
+            nsapiSizeError = socket->pending;
+            nsapiSizeError = NSAPI_ERROR_OK;
+        }
+    } else {
+        nsapiSizeError = NSAPI_ERROR_NO_CONNECTION;
+    }
+
+    return nsapiSizeError;
+}
+
+// Set a socket to be blocking.
+nsapi_error_t UbloxCellularInterfaceData::set_blocking(nsapi_socket_t handle, bool blocking)
+{
+    nsapi_error_t nsapiError;
+
+    if (blocking) {
+        nsapiError = set_timeout(handle, -1);
+    } else {
+        nsapiError = set_timeout(handle, 0);
+    }
+
+    return nsapiError;
+}
+
+// Set a socket timeout.
+nsapi_error_t UbloxCellularInterfaceData::set_timeout(nsapi_socket_t handle, int timeout)
+{
+    SockCtrl *socket = (SockCtrl *) handle;
+
+    tr_debug("socket_set_timeout(0x%08x, %d)", (unsigned int) handle, timeout);
+    socket->timeoutMilliseconds = timeout;
+
+    return NSAPI_ERROR_OK;
+}
+
+// Find or create a socket from the list.
+UbloxCellularInterfaceData::SockCtrl * UbloxCellularInterfaceData::findSocket(int modemHandle)
+{
+    UbloxCellularInterfaceData::SockCtrl *socket = NULL;
+
+    for (unsigned int x = 0; (socket == NULL) && (x < sizeof(_sockets) / sizeof(_sockets[0])); x++) {
+        if (_sockets[x].modemHandle == modemHandle) {
+            socket = &(_sockets[x]);
         }
     }
 
@@ -253,14 +694,16 @@ int UbloxCellularInterfaceData::findSocket(int handle)
 // Callback for Socket Read URC.
 void UbloxCellularInterfaceData::UUSORD_URC()
 {
-    int a, b;
+    int a;
+    int b;
+    SockCtrl *socket;
 
     // +UUSORD: <socket>,<length>
     if (_at->recv(": %d,%d", &a, &b)) {
-        int socket = findSocket(a);
-        tr_debug("Socket %d: handle %d has %d bytes pending", socket, a, b);
-        if (socket != SOCKET_ERROR) {
-            _sockets[socket].pending = b;
+        socket = findSocket(a);
+        tr_debug("Socket 0x%08x: modem handle %d has %d bytes pending", (unsigned int) socket, a, b);
+        if (socket != NULL) {
+            socket->pending = b;
         }
     }
 }
@@ -268,14 +711,16 @@ void UbloxCellularInterfaceData::UUSORD_URC()
 // Callback for Socket Read From URC.
 void UbloxCellularInterfaceData::UUSORF_URC()
 {
-    int a, b;
+    int a;
+    int b;
+    SockCtrl *socket;
 
     // +UUSORF: <socket>,<length>
     if (_at->recv(": %d,%d", &a, &b)) {
-        int socket = findSocket(a);
-        tr_debug("Socket %d: handle %d has %d bytes pending", socket, a, b);
-        if (socket != SOCKET_ERROR) {
-            _sockets[socket].pending = b;
+        socket = findSocket(a);
+        tr_debug("Socket 0x%08x: modem handle %d has %d bytes pending", (unsigned int) socket, a, b);
+        if (socket != NULL) {
+            socket->pending = b;
         }
     }
 }
@@ -284,13 +729,14 @@ void UbloxCellularInterfaceData::UUSORF_URC()
 void UbloxCellularInterfaceData::UUSOCL_URC()
 {
     int a;
+    SockCtrl *socket;
 
     // +UUSOCL: <socket>
     if (_at->recv(": %d", &a)) {
-        int socket = findSocket(a);
-        tr_debug("Socket %d: handle %d closed by remote host", socket, a);
-        if (socket != SOCKET_ERROR) {
-            _sockets[socket].connected = false;
+        socket = findSocket(a);
+        tr_debug("Socket 0x%08x: handle %d closed by remote host", (unsigned int) socket, a);
+        if (socket != NULL) {
+            socket->connected = false;
         }
     }
 }
@@ -314,15 +760,15 @@ void UbloxCellularInterfaceData::UUHTTPCR_URC()
 }
 
 // Find a given profile.  NOTE: LOCK() before calling.
-int UbloxCellularInterfaceData::findProfile(int handle)
+int UbloxCellularInterfaceData::findProfile(int modemHandle)
 {
     for (unsigned int profile = 0; profile < (sizeof(_httpProfiles)/sizeof(_httpProfiles[0])); profile++) {
-        if (_httpProfiles[profile].handle == handle) {
+        if (_httpProfiles[profile].modemHandle == modemHandle) {
             return profile;
         }
     }
 
-    return HTTP_PROF_ERROR;
+    return HTTP_PROF_UNUSED;
 }
 
 /**********************************************************************
@@ -331,8 +777,14 @@ int UbloxCellularInterfaceData::findProfile(int handle)
 
 // Constructor.
 UbloxCellularInterfaceData::UbloxCellularInterfaceData(bool debugOn, PinName tx, PinName rx, int baud):
-                           UbloxCellularInterfaceExt(debugOn, tx, rx, baud)
+                            UbloxCellularInterfaceExt(debugOn, tx, rx, baud)
 {
+    // Initialise sockets storage
+    memset(_sockets, 0, sizeof(_sockets));
+    for (unsigned int socket = 0; socket < sizeof(_sockets) / sizeof(_sockets[0]); socket++) {
+        _httpProfiles[socket].modemHandle = SOCKET_UNUSED;
+    }
+
     // The authentication to use
     _auth = AUTH_DETECT;
 
@@ -343,8 +795,11 @@ UbloxCellularInterfaceData::UbloxCellularInterfaceData(bool debugOn, PinName tx,
     // Zero HTTP profiles
     memset(_httpProfiles, 0, sizeof(_httpProfiles));
     for (unsigned int profile = 0; profile < sizeof(_httpProfiles) / sizeof(_httpProfiles[0]); profile++) {
-        _httpProfiles[profile].handle = HTTP_PROF_ERROR;
+        _httpProfiles[profile].modemHandle = HTTP_PROF_UNUSED;
     }
+
+    // Nullify the temporary IP address storage
+    _ip = NULL;
 
     // URC handlers for sockets
     _at->oob("+UUSORD", callback(this, &UbloxCellularInterfaceData::UUSORD_URC));
@@ -358,12 +813,13 @@ UbloxCellularInterfaceData::UbloxCellularInterfaceData(bool debugOn, PinName tx,
 // Destructor.
 UbloxCellularInterfaceData::~UbloxCellularInterfaceData()
 {
-    // TODO
+    // Free _ip if it was ever allocated
+    free(_ip);
 }
 
 // Make a cellular connection using the IP stack on board the cellular modem
 nsapi_error_t UbloxCellularInterfaceData::join(const char *apn, const char *uname,
-                                              const char *pwd, Auth auth)
+                                               const char *pwd, Auth auth)
 {
     nsapi_error_t nsapi_error = NSAPI_ERROR_ALREADY;
 
@@ -428,393 +884,6 @@ nsapi_error_t UbloxCellularInterfaceData::disconnect()
     return nsapi_error;
 }
 
-// Get the IP address of a host.
-UbloxCellularInterfaceData::IP UbloxCellularInterfaceData::gethostbyname(const char *host)
-{
-    IP ip = NOIP;
-    int a, b, c, d;
-
-    if (sscanf(host, IPSTR, &a, &b, &c, &d) == 4) {
-        ip = IPADR(a, b, c, d);
-    } else {
-        LOCK();
-        if (_at->send("AT+UDNSRN=0,\"%s\"", host) && _at->recv("+UDNSRN: \"" IPSTR "\"", &a, &b, &c, &d)) {
-            ip = IPADR(a, b, c, d);
-        }
-        UNLOCK();
-    }
-
-    return ip;
-}
-
-/**********************************************************************
- * PUBLIC METHODS: SOCKETS
- **********************************************************************/
-
-// Create a socket.
-int UbloxCellularInterfaceData::socketSocket(IpProtocol ipproto, int port)
-{
-    bool success = false;
-    int socket;
-    LOCK();
-
-    // Find a free socket
-    socket = findSocket();
-    tr_debug("socketSocket(%d)", ipproto);
-
-    if (socket != SOCKET_ERROR) {
-        if (ipproto == IPPROTO_UDP) {
-            // Sending port can only be set on 2G/3G modules
-            if ((port != -1) && (_dev_info->dev != DEV_LISA_C2)) {
-                success = _at->send("AT+USOCR=17,%d", port);
-            } else {
-                success = _at->send("AT+USOCR=17");
-            }
-        } else  { // IPPROTO_TCP
-            success = _at->send("AT+USOCR=6\r\n");
-        }
-
-        int handle = SOCKET_ERROR;
-
-        if (success && _at->recv("+USOCR: %d", &handle) && (handle != SOCKET_ERROR)) {
-            tr_debug("Socket %d: handle %d was created", socket, handle);
-            _sockets[socket].handle     = handle;
-            _sockets[socket].timeoutMilliseconds = TIMEOUT_BLOCKING;
-            _sockets[socket].connected  = false;
-            _sockets[socket].pending    = 0;
-        } else {
-            socket = SOCKET_ERROR;
-        }
-    }
-
-    UNLOCK();
-    return socket;
-}
-
-// Connect a socket.
-bool UbloxCellularInterfaceData::socketConnect(int socket, const char * host, int port)
-{
-    bool success = false;
-    IP ip = gethostbyname(host);
-
-    if (ip != NOIP) {
-        LOCK();
-
-        if (IS_SOCKET(socket) && (!_sockets[socket].connected)) {
-            tr_debug("socketConnect(%d, %s, %d)", socket, host, port);
-            if (_at->send("AT+USOCO=%d,\"" IPSTR "\",%d", _sockets[socket].handle, IPNUM(ip), port) &&
-                _at->recv("OK")) {
-                _sockets[socket].connected == true;
-                success = true;
-            }
-        }
-
-        UNLOCK();
-    }
-
-    return success;
-}
-
-// Determine whether a socket is connected.
-bool UbloxCellularInterfaceData::socketIsConnected(int socket)
-{
-    bool success = false;
-    LOCK();
-
-    success = IS_SOCKET(socket) && _sockets[socket].connected;
-    tr_debug("socketIsConnected(%d) %s", socket, success ? "yes":"no");
-
-    UNLOCK();
-    return success;
-}
-
-// Set a socket timeout.
-bool UbloxCellularInterfaceData::socketSetBlocking(int socket, int timeoutMilliseconds)
-{
-    bool success = false;
-    LOCK();
-
-    tr_debug("socketSetBlocking(%d, %d)", socket, timeoutMilliseconds);
-    if (IS_SOCKET(socket)) {
-        _sockets[socket].timeoutMilliseconds = timeoutMilliseconds;
-        success = true;
-    }
-
-    UNLOCK();
-    return success;
-}
-
-// Close a socket.
-bool UbloxCellularInterfaceData::socketClose(int socket)
-{
-    bool success = false;
-    LOCK();
-
-    if (IS_SOCKET(socket) && _sockets[socket].connected) {
-        tr_debug("socketClose(%d)", socket);
-        if (_at->send("AT+USOCL=%d\r\n", _sockets[socket].handle) &&
-            _at->recv("OK")) {
-            _sockets[socket].connected = false;
-            success = true;
-        }
-    }
-
-    UNLOCK();
-    return success;
-}
-
-// Free a socket.
-bool UbloxCellularInterfaceData::socketFree(int socket)
-{
-    bool success = false;
-
-    // Make sure it is closed first
-    if (IS_SOCKET(socket)) {
-        if (socketClose(socket)) {
-            tr_debug("socketFree(%d)", socket);
-            _sockets[socket].handle     = SOCKET_ERROR;
-            _sockets[socket].timeoutMilliseconds = TIMEOUT_BLOCKING;
-            _sockets[socket].connected  = false;
-            _sockets[socket].pending    = 0;
-            success = true;
-        }
-    }
-    return success;
-}
-
-// Send to a socket.
-int UbloxCellularInterfaceData::socketSend(int socket, const char * buf, int len)
-{
-    int returnValue = SOCKET_ERROR;
-    bool success = true;
-    int blk = MAX_WRITE_SIZE;
-    int cnt = len;
-
-    tr_debug("socketSend(%d,,%d)", socket, len);
-
-    while ((cnt > 0) && success) {
-        if (cnt < blk) {
-            blk = cnt;
-        }
-        LOCK();
-
-        if (IS_SOCKET(socket)) {
-            if (_at->send("AT+USOWR=%d,%d", _sockets[socket].handle, blk) && _at->recv("@")) {
-                wait_ms(50);
-                if ((_at->write(buf, blk) >= blk) &&
-                    _at->recv("OK")) {
-                    success = true;
-                }
-            }
-        }
-
-        UNLOCK();
-        buf += blk;
-        cnt -= blk;
-    }
-
-    if (success) {
-        returnValue = len - cnt;
-    }
-
-    return returnValue;
-}
-
-// Send to an IP address.
-int UbloxCellularInterfaceData::socketSendTo(int socket, IP ip, int port, const char * buf, int len)
-{
-    int returnValue = SOCKET_ERROR;
-    bool success = true;
-    int blk = MAX_WRITE_SIZE;
-    int cnt = len;
-
-    tr_debug("socketSendTo(%d," IPSTR ",%d,,%d)", socket, IPNUM(ip), port, len);
-
-    while ((cnt > 0) && success) {
-        if (cnt < blk) {
-            blk = cnt;
-        }
-        LOCK();
-
-        if (IS_SOCKET(socket)) {
-            if (_at->send("AT+USOST=%d,\"" IPSTR "\",%d,%d",_sockets[socket].handle, IPNUM(ip), port, blk) &&
-                _at->recv("@")) {
-                wait_ms(50);
-                if ((_at->write(buf, blk) >= blk) &&
-                    _at->recv("OK")) {
-                    success = true;
-                }
-            }
-        }
-        UNLOCK();
-        buf += blk;
-        cnt -= blk;
-    }
-
-    if (success) {
-        returnValue = len - cnt;
-    }
-
-    return returnValue;
-}
-
-// Determine if there's anything to read.
-int UbloxCellularInterfaceData::socketReadable(int socket)
-{
-    int pending = SOCKET_ERROR;
-    LOCK();
-
-    if (IS_SOCKET(socket) && _sockets[socket].connected) {
-        tr_debug("socketReadable(%d)", socket);
-        // Allow time to receive unsolicited commands
-        wait_ms(8000);
-        if (_sockets[socket].connected) {
-           pending = _sockets[socket].pending;
-        }
-    }
-
-    UNLOCK();
-    return pending;
-}
-
-// Receive from a socket.
-int UbloxCellularInterfaceData::socketRecv(int socket, char* buf, int len)
-{
-    int returnValue = SOCKET_ERROR;
-    bool success = true;
-    int blk = MAX_READ_SIZE;
-    char * tmpBuf = NULL;
-    int cnt = 0;
-    unsigned int sz, sk, readSize;
-    Timer timer;
-
-    tr_debug("socketRecv(%d,,%d)", socket, len);
-
-    timer.start();
-    while (success && (len > 0)) {
-        if (len < blk) {
-            blk = len;
-        }
-        LOCK();
-
-        tmpBuf = (char *) malloc(MAX_READ_SIZE);
-
-        if ((tmpBuf != NULL) && IS_SOCKET(socket)) {
-            if (_sockets[socket].connected) {
-                if (_sockets[socket].pending < blk) {
-                    blk = _sockets[socket].pending;
-                }
-                if (blk > 0) {
-                    if (_at->send("AT+USORD=%d,%d",_sockets[socket].handle, blk) &&
-                        _at->recv("+USORD: %d,%d,", &sk, &sz)) {
-                        MBED_ASSERT (sz <= sizeof (tmpBuf) + 2);
-                        readSize = _at->read(tmpBuf, sz + 2); // +2 for leading and trailing quotes
-                        if ((readSize > 0) &&
-                            (*(tmpBuf + readSize - sz - 2) == '\"' && *(tmpBuf  + readSize - 1) == '\"')) {
-                            memcpy(buf, (tmpBuf + readSize - sz - 1), sz);
-                            _sockets[socket].pending -= blk;
-                            len -= blk;
-                            cnt += blk;
-                            buf += blk;
-                        }
-                    }
-                } else if (!TIMEOUT(timer, _sockets[socket].timeoutMilliseconds)) {
-                    wait_ms(8000);  // wait for URCs
-                } else {
-                    len = 0;
-                }
-            } else {
-                len = 0;
-            }
-        } else {
-            success = false;
-        }
-
-        free(tmpBuf);
-
-        UNLOCK();
-    }
-    timer.stop();
-
-    if (success) {
-        returnValue = cnt;
-    }
-
-    tr_debug("socketRecv: %d \"%*s\"", cnt, cnt, buf - cnt);
-
-    return returnValue;
-}
-
-int UbloxCellularInterfaceData::socketRecvFrom(int socket, IP* ip, int* port, char* buf, int len)
-{
-    int returnValue = SOCKET_ERROR;
-    bool success = true;
-    int blk = MAX_READ_SIZE;
-    char * tmpBuf = NULL;
-    int cnt = 0;
-    unsigned int sz, sk, a, b, c, d, readSize;
-    Timer timer;
-
-    tr_debug("socketRecvFrom(%d,,%d)", socket, len);
-
-    timer.start();
-    while (success && (len > 0)) {
-        if (len < blk) {
-            blk = len;
-        }
-        LOCK();
-
-        tmpBuf = (char *) malloc(MAX_READ_SIZE);
-
-        if ((tmpBuf != NULL) && IS_SOCKET(socket)) {
-            if (_sockets[socket].connected) {
-                if (_sockets[socket].pending < blk) {
-                    blk = _sockets[socket].pending;
-                }
-                if (blk > 0) {
-                    if (_at->send("AT+USORF=%d,%d",_sockets[socket].handle, blk) &&
-                        _at->recv("\r\n+USORF: %d,\"" IPSTR "\",%d,%d,",
-                                  &sk, &a, &b, &c, &d, port, &sz)) {
-                        MBED_ASSERT (sz <= sizeof (tmpBuf) + 2);
-                        readSize = _at->read(tmpBuf, sz + 2); // +2 for leading and trailing quotes
-                        if ((readSize > 0) &&
-                            (*(tmpBuf + readSize - sz - 2) == '\"') && *(tmpBuf + readSize - 1) == '\"') {
-                            memcpy(buf, (tmpBuf + readSize - sz - 1), sz);
-                            _sockets[socket].pending -= blk;
-                            *ip = IPADR(a, b, c, d);
-                            len -= blk;
-                            cnt += blk;
-                            buf += blk;
-                            len = 0; // done
-                        }
-                    }
-                } else if (!TIMEOUT(timer, _sockets[socket].timeoutMilliseconds)) {
-                    wait_ms(8000);  // wait for URCs
-                } else {
-                    len = 0;
-                }
-            } else {
-                len = 0;
-            }
-        } else {
-            success = false;
-        }
-
-        free(tmpBuf);
-
-        UNLOCK();
-    }
-    timer.stop();
-
-    if (success) {
-        returnValue = cnt;
-    }
-
-    tr_debug("socketRecvFrom: %d \"%*s\"", cnt, cnt, buf - cnt);
-
-    return returnValue;
-}
-
 /**********************************************************************
  * PUBLIC METHODS: HTTP
  **********************************************************************/
@@ -822,19 +891,19 @@ int UbloxCellularInterfaceData::socketRecvFrom(int socket, IP* ip, int* port, ch
 // Find a free profile.
 int UbloxCellularInterfaceData::httpFindProfile()
 {
-    int profile = HTTP_PROF_ERROR;
+    int profile = HTTP_PROF_UNUSED;
     LOCK();
 
     // Find a free HTTP profile
     profile = findProfile();
     tr_debug("httpFindProfile: profile is %d", profile);
 
-    if (profile != HTTP_PROF_ERROR) {
-        _httpProfiles[profile].handle     = 1;
-        _httpProfiles[profile].timeout_ms = TIMEOUT_BLOCKING;
-        _httpProfiles[profile].pending    = false;
-        _httpProfiles[profile].cmd        = -1;
-        _httpProfiles[profile].result     = -1;
+    if (profile != HTTP_PROF_UNUSED) {
+        _httpProfiles[profile].modemHandle = 1;
+        _httpProfiles[profile].timeout_ms  = TIMEOUT_BLOCKING;
+        _httpProfiles[profile].pending     = false;
+        _httpProfiles[profile].cmd         = -1;
+        _httpProfiles[profile].result      = -1;
     }
 
     UNLOCK();
@@ -844,34 +913,34 @@ int UbloxCellularInterfaceData::httpFindProfile()
 // Set the blocking/timeout state of a profile.
 bool UbloxCellularInterfaceData::httpSetBlocking(int profile, int timeout_ms)
 {
-    bool ok = false;
+    bool success = false;
     LOCK();
 
     tr_debug("httpSetBlocking(%d, %d)", profile, timeout_ms);
     if (IS_PROFILE(profile)) {
         _httpProfiles[profile].timeout_ms = timeout_ms;
-        ok = true;
+        success = true;
     }
 
     UNLOCK();
-    return ok;
+    return success;
 }
 
 // Set the profile so that it's suitable for commands.
 bool UbloxCellularInterfaceData::httpSetProfileForCmdMng(int profile)
 {
-    bool ok = false;
+    bool success = false;
     LOCK();
 
     tr_debug("httpSetProfileForCmdMng(%d)", profile);
     if (IS_PROFILE(profile)) {
         _httpProfiles[profile].pending = true;
         _httpProfiles[profile].result = -1;
-        ok = true;
+        success = true;
     }
 
     UNLOCK();
-    return ok;
+    return success;
 }
 
 // Free a profile.
@@ -881,11 +950,11 @@ bool UbloxCellularInterfaceData::httpFreeProfile(int profile)
 
     if (IS_PROFILE(profile)) {
         tr_debug("httpFreeProfile(%d)", profile);
-        _httpProfiles[profile].handle     = HTTP_PROF_ERROR;
-        _httpProfiles[profile].timeout_ms = TIMEOUT_BLOCKING;
-        _httpProfiles[profile].pending    = false;
-        _httpProfiles[profile].cmd        = -1;
-        _httpProfiles[profile].result     = -1;
+        _httpProfiles[profile].modemHandle = HTTP_PROF_UNUSED;
+        _httpProfiles[profile].timeout_ms  = TIMEOUT_BLOCKING;
+        _httpProfiles[profile].pending     = false;
+        _httpProfiles[profile].cmd         = -1;
+        _httpProfiles[profile].result      = -1;
     }
 
     UNLOCK();
@@ -895,51 +964,46 @@ bool UbloxCellularInterfaceData::httpFreeProfile(int profile)
 // Set a profile back to defaults.
 bool UbloxCellularInterfaceData::httpResetProfile(int httpProfile)
 {
-    bool ok = false;
+    bool success = false;
     LOCK();
 
     tr_debug("httpResetProfile(%d)", httpProfile);
-    ok = _at->send("AT+UHTTP=%d", httpProfile) && _at->recv("OK");
+    success = _at->send("AT+UHTTP=%d", httpProfile) && _at->recv("OK");
 
     UNLOCK();
-    return ok;
+    return success;
 }
 
 // Set HTTP parameters.
 bool UbloxCellularInterfaceData::httpSetPar(int httpProfile, HttpOpCode httpOpCode, const char * httpInPar)
 {
-    bool ok = false;
-    IP ip = NOIP;
+    bool success = false;
     int httpInParNum = 0;
+    SocketAddress address;
     LOCK();
 
-    tr_debug("httpSetPar(%d,%d,\"%s\")", httpProfile, httpOpCode, httpInPar);
+    tr_debug("httpSetPar(%d, %d, \"%s\")", httpProfile, httpOpCode, httpInPar);
     switch(httpOpCode) {
         case HTTP_IP_ADDRESS:   // 0
-            ip = gethostbyname(httpInPar);
-            if (ip != NOIP) {
-                ok = _at->send("AT+UHTTP=%d,%d,\"" IPSTR "\"", httpProfile, httpOpCode, IPNUM(ip)) && _at->recv("OK");
+            if (gethostbyname(httpInPar, &address) == NSAPI_ERROR_OK) {
+                success = _at->send("AT+UHTTP=%d,%d,\"%s\"", httpProfile, httpOpCode, address.get_ip_address()) && _at->recv("OK");
             }
             break;
         case HTTP_SERVER_NAME:  // 1
         case HTTP_USER_NAME:    // 2
         case HTTP_PASSWORD:     // 3
-            ok = _at->send("AT+UHTTP=%d,%d,\"%s\"", httpProfile, httpOpCode, httpInPar) && _at->recv("OK");
+            success = _at->send("AT+UHTTP=%d,%d,\"%s\"", httpProfile, httpOpCode, httpInPar) && _at->recv("OK");
             break;
 
         case HTTP_AUTH_TYPE:    // 4
         case HTTP_SERVER_PORT:  // 5
             httpInParNum = atoi(httpInPar);
-            ok = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) && _at->recv("OK");
+            success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) && _at->recv("OK");
             break;
 
         case HTTP_SECURE:       // 6
-            if (_dev_info->dev != DEV_LISA_C2) {
-                httpInParNum = atoi(httpInPar);
-                ok = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) && _at->recv("OK");
-            } else {
-                tr_debug("httpSetPar: HTTP secure option not supported by module");
-            }
+            httpInParNum = atoi(httpInPar);
+            success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) && _at->recv("OK");
             break;
 
         default:
@@ -948,88 +1012,64 @@ bool UbloxCellularInterfaceData::httpSetPar(int httpProfile, HttpOpCode httpOpCo
     }
 
     UNLOCK();
-    return ok;
+    return success;
 }
 
 // Perform an HTTP command.
 bool UbloxCellularInterfaceData::httpCommand(int httpProfile, HttpCmd httpCmdCode, const char *httpPath, const char *httpOut,
-                                            const char *httpIn, int httpContentType, const char *httpCustomPar, char *buf, int len)
+                                             const char *httpIn, int httpContentType, const char *httpCustomPar, char *buf, int len)
 {
-    bool ok = false;
+    bool success = false;
     LOCK();
 
     tr_debug("%s", getHTTPcmd(httpCmdCode));
     switch (httpCmdCode) {
         case HTTP_HEAD:
-            ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_HEAD, httpPath, httpOut) &&
-                 _at->recv("OK");
+            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_HEAD, httpPath, httpOut) &&
+                      _at->recv("OK");
             break;
         case HTTP_GET:
-            ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_GET, httpPath, httpOut) &&
-                 _at->recv("OK");
+            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_GET, httpPath, httpOut) &&
+                      _at->recv("OK");
             break;
         case HTTP_DELETE:
-            ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_DELETE, httpPath, httpOut) &&
-                 _at->recv("OK");
+            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_DELETE, httpPath, httpOut) &&
+                      _at->recv("OK");
             break;
         case HTTP_PUT:
             // In this case the parameter httpIn is a filename
-            ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\"", httpProfile, HTTP_PUT, httpPath, httpOut, httpIn) &&
+            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\"", httpProfile, HTTP_PUT, httpPath, httpOut, httpIn) &&
                  _at->recv("OK");
             break;
         case HTTP_POST_FILE:
             // In this case the parameter httpIn is a filename
-            if (_dev_info->dev != DEV_LISA_C2) {
-                if (httpContentType != 6) {
-                    ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
-                                   httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn, httpContentType) &&
-                         _at->recv("OK");
-                } else {
-                    ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
-                                   httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn, httpContentType, httpCustomPar) &&
-                         _at->recv("OK");
-                }
+            if (httpContentType != 6) {
+                success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
+                               httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn, httpContentType) &&
+                          _at->recv("OK");
             } else {
-                if ((httpContentType != 5) && (httpContentType != 6) && (httpCustomPar == NULL)) {
-                    // Parameter values consistent with the AT commands specs of LISA-C200
-                    // (in particular httpCustomPar has to be not defined)
-                    ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
-                                   httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn, httpContentType) &&
-                         _at->recv("OK");
-                } else {
-                    tr_debug("httpCommand: command not supported by module");
-                }
+                success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
+                               httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn, httpContentType, httpCustomPar) &&
+                          _at->recv("OK");
             }
             break;
         case HTTP_POST_DATA:
             // In this case the parameter httpIn is a string containing data
-            if (_dev_info->dev != DEV_LISA_C2) {
-                if (httpContentType != 6) {
-                    ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
-                                   httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn, httpContentType) &&
-                         _at->recv("OK");
-           } else {
-                    ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
-                                   httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn, httpContentType, httpCustomPar) &&
-                         _at->recv("OK");
-                }
+            if (httpContentType != 6) {
+                success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
+                               httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn, httpContentType) &&
+                          _at->recv("OK");
             } else {
-                if ((httpContentType != 5) && (httpContentType != 6) && (httpCustomPar == NULL)) {
-                    // Parameters values consistent with the AT commands specs of LISA-C200
-                    // (in particular httpCustomPar has to be not defined)
-                    ok = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
-                                   httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn, httpContentType) &&
-                         _at->recv("OK");
-                } else {
-                    tr_debug("httpCommand: command not supported by module");
-                }
+                success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
+                               httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn, httpContentType, httpCustomPar) &&
+                          _at->recv("OK");
             }
             break;
         default:
             tr_debug("HTTP command not recognised");
     }
 
-    if (ok) {
+    if (success) {
         Timer timer;
 
         timer.start();
@@ -1037,26 +1077,19 @@ bool UbloxCellularInterfaceData::httpCommand(int httpProfile, HttpCmd httpCmdCod
 
         // Waiting for unsolicited result codes
         while (_httpProfiles[httpProfile].pending) {
-            ok = false;  // Reset variable
+            success = false;  // Reset variable
             if (_httpProfiles[httpProfile].result != -1) {
                 // Received unsolicited: starting its analysis
                 _httpProfiles[httpProfile].pending = false;
                 if (_httpProfiles[httpProfile].result == 1) {
                     // HTTP command successfully executed
-                    if (_dev_info->dev != DEV_LISA_C2) {
-                        tr_debug("httpCommand: reading files with a dimension also greater than MAX_SIZE bytes");
-                        if (readFileNew(httpOut, buf, len) >= 0) {
-                            ok = true;
-                        }
-                    } else {
-                        tr_debug("httpCommand: reading files with a dimension less than MAX_SIZE bytes, otherwise error");
-                        if (readFile(httpOut, buf, len) >= 0) {
-                            ok = true;
-                        }
+                    tr_debug("httpCommand: reading files with a dimension also greater than MAX_SIZE bytes");
+                    if (readFileNew(httpOut, buf, len) >= 0) {
+                        success = true;
                     }
                 } else {
                     // HTTP command not successfully executed
-                    ok = false;
+                    success = false;
                 }
             } else if (!TIMEOUT(timer, _httpProfiles[httpProfile].timeout_ms)) {
                 // Wait for URCs
@@ -1064,10 +1097,10 @@ bool UbloxCellularInterfaceData::httpCommand(int httpProfile, HttpCmd httpCmdCod
             } else  {
                 // Not received unsolicited and expired timer
                 tr_debug("httpCommand: URC not received in time");
-                ok = false;
+                success = false;
             }
 
-            if (!ok) {
+            if (!success) {
                 tr_debug("%s: ERROR", getHTTPcmd(httpCmdCode));
                 // No more while loops
                 _httpProfiles[httpProfile].pending = false;
@@ -1076,7 +1109,7 @@ bool UbloxCellularInterfaceData::httpCommand(int httpProfile, HttpCmd httpCmdCod
     }
 
     UNLOCK();
-    return ok;
+    return success;
 }
 
 // Return a string representing an AT command.

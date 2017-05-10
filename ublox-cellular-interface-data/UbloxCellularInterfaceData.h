@@ -16,26 +16,8 @@
 #ifndef _UBLOX_CELLULAR_INTERFACE_DATA_
 #define _UBLOX_CELLULAR_INTERFACE_DATA_
 
+#include "NetworkStack.h"
 #include "UbloxCellularInterfaceExt.h"
-
-/** Management structure for HTTP profiles.
- *
- * It is possible to have up to 4 different HTTP profiles (LISA-C200, LISA-U200 and SARA-G350) having:
- *
- * @param handle the current HTTP profile is in handling state or not (default value is HTTP_ERROR).
- * @param timeout_ms the timeout for the current HTTP command.
- * @param pending the status for the current HTTP command (in processing state or not).
- * @param cmd the code for the current HTTP command.
- * @param result the result for the current HTTP command once processed.
- */
- typedef struct {
-     int handle;
-     int timeout_ms;
-     bool pending;
-     int cmd;
-     int result;
- } HttpProfCtrl;
-
 
 /** UbloxCellularInterfaceData class.
  *
@@ -43,49 +25,15 @@
  * include features that use the IP stack on board the
  * cellular modem: HTTP and Cell Locate.
  */
-class UbloxCellularInterfaceData : public UbloxCellularInterfaceExt {
+class UbloxCellularInterfaceData : public NetworkStack, public UbloxCellularInterfaceExt {
 
 public:
      UbloxCellularInterfaceData(bool debugOn = false, PinName tx = MDMTXD, PinName rx = MDMRXD, int baud = MBED_CONF_UBLOX_MODEM_GENERIC_BAUD_RATE);
     ~UbloxCellularInterfaceData();
 
-
     /**********************************************************************
      * PUBLIC: Generic
      **********************************************************************/
-
-    /** An IP v4 address.
-     */
-    typedef unsigned int IP;
-
-    /** No IP address.
-     */
-    #define NOIP ((UbloxCellularInterfaceData::IP) 0)
-
-    /**  IP number formatting.
-     */
-    #define IPSTR           "%d.%d.%d.%d"
-
-    /** Convert an IP address expressed as an unsigned
-     * integer into %d.%d.%d.%d format.
-     */
-    #define IPNUM(ip)      ((ip) >> 24) & 0xff, \
-                           ((ip) >> 16) & 0xff, \
-                           ((ip) >> 8) & 0xff, \
-                           ((ip) >> 0) & 0xff
-
-    /** Convert and IP address from %d.%d.%d.%d
-     * format into an unsigned integer.
-     */
-    #define IPADR(a,b,c,d) ((((IP)(a)) << 24) | \
-                           (((IP)(b)) << 16) | \
-                           (((IP)(c)) << 8) | \
-                           (((IP)(d)) << 0))
-
-
-    /** Infinite timeout.
-     */
-    #define TIMEOUT_BLOCKING -1
 
     /** Types of authentication.
      */
@@ -95,13 +43,6 @@ public:
         AUTH_CHAP,
         AUTH_DETECT
     } Auth;
-
-    /** Get the IP address of a given HTTP host name.
-     *
-     * @param host the host name as a string.
-     * @return the IP address of the host.
-     */
-    IP gethostbyname(const char *host);
 
     /** Similar to connect(), but using the IP stack that is
      *  on-board the cellular modem instead of the LWIP stack
@@ -145,141 +86,12 @@ public:
     virtual nsapi_error_t disconnect();
 
     /**********************************************************************
-     * PUBLIC: Sockets
-     **********************************************************************/
-
-    /** Socket error return codes.
-     */
-    #define SOCKET_ERROR -1
-
-    /** Maximum number of bytes that can be written to a socket.
-     */
-    #define MAX_WRITE_SIZE 1024
-
-    /** Maximum number of bytes that can be read from a socket.
-     */
-    #define MAX_READ_SIZE 128
-
-    /** Type of IP protocol.
-     */
-    typedef enum {
-        IPPROTO_TCP,
-        IPPROTO_UDP
-    } IpProtocol;
-
-    /** Management structure for sockets.
-     */
-    typedef struct {
-        int handle;
-        int timeoutMilliseconds;
-        volatile bool connected;
-        volatile int pending;
-    } SockCtrl;
-
-    /** Socket storage.
-     */
-    SockCtrl _sockets[12];
-
-    /** Create a socket for an IP protocol (and optionally bind).
-     *
-     * @param ipproto the protocol (UDP or TCP).
-     * @param port in case of UDP, this optional port where it is bind.
-     * @return the socket handle if successful or SOCKET_ERROR on failure.
-    */
-    int socketSocket(IpProtocol ipproto, int port = -1);
-
-    /** Make a socket connection.
-     *
-     * @param socket the socket handle.
-     * @param host the domain name to connect e.g. "u-blox.com".
-     * @param port the port to connect.
-     * @return true if successfully, false otherwise.
-     */
-    bool socketConnect(int socket, const char* host, int port);
-
-    /** Check whether a socket is connected or not.
-     *
-     * @param socket the socket handle.
-     * @return true if connected, false otherwise.
-     */
-    bool socketIsConnected(int socket);
-
-    /** Get the number of bytes pending for reading for this socket.
-     *
-     * @param socket the socket handle.
-     * @param timeout_ms -1 blocking, else non blocking timeout in ms.
-     * @return 0 if successful or SOCKET_ERROR on failure.
-     */
-    bool socketSetBlocking(int socket, int timeoutMilliseconds);
-
-    /** Write socket data.
-     *
-     * @param socket the socket handle.
-     * @param buf the buffer to write.
-     * @param len the size of the buffer to write.
-     * @return the size written or SOCKET_ERROR on failure.
-     */
-    int socketSend(int socket, const char * buf, int len);
-
-    /** Write socket data to an IP address.
-     *
-     * @param socket the socket handle.
-     * @param ip the IP address to send to.
-     * @param port the port to send to.
-     * @param buf the buffer to write.
-     * @param len the size of the buffer to write.
-     * @return the size written or SOCKET_ERROR on failure.
-     */
-    int socketSendTo(int socket, IP ip, int port, const char * buf, int len);
-
-    /** Get the number of bytes pending for reading for this socket.
-     *
-     * @param socket the socket handle.
-     * @return the number of bytes pending or SOCKET_ERROR on failure.
-     */
-    int socketReadable(int socket);
-
-    /** Read this socket.
-     *
-     * @param socket the socket handle.
-     * @param buf the buffer to read into.
-     * @param len the size of the buffer to read into.
-     * @return the number of bytes read or SOCKET_ERROR on failure.
-     */
-    int socketRecv(int socket, char* buf, int len);
-
-    /** Read from this socket.
-     *
-     * @param socket the socket handle.
-     * @param ip the ip of host where the data originates from.
-     * @param port the port where the data originates from.
-     * @param buf the buffer to read into.
-     * @param len the size of the buffer to read into.
-     * @\return the number of bytes read or SOCKET_ERROR on failure.
-     */
-    int socketRecvFrom(int socket, IP* ip, int* port, char* buf, int len);
-
-    /** Close a connected socket (that was connected with #socketConnect).
-     *
-     * @param socket the socket handle.
-     * @return true if successfully, false otherwise.
-     */
-    bool socketClose(int socket);
-
-    /** Free the socket (that was allocated before by #socketSocket).
-     *
-     * @param socket the socket handle.
-     * @return true if successfully, false otherwise.
-     */
-    bool socketFree(int socket);
-
-    /**********************************************************************
      * PUBLIC: HTTP
      **********************************************************************/
 
     /** HTTP Profile error return codes.
      */
-    #define HTTP_PROF_ERROR -1
+    #define HTTP_PROF_UNUSED -1
 
     /** Type of HTTP Operational Codes (reference to HTTP control +UHTTP).
      */
@@ -484,13 +296,6 @@ protected:
      * PROTECTED: Generic
      **********************************************************************/
 
-    /** Get the IP address of the modem's on-board IP stack,
-     * timing out after 10 seconds if there is none.
-     *
-     * @return the IP address if successful, otherwise NOIP.
-     */
-    UbloxCellularInterfaceData::IP getIpAddress();
-
     /** Activate one of the on-board modem's connection profiles.
      *
      * @param apn      the apn to use.
@@ -538,17 +343,252 @@ protected:
      * PROTECTED: Sockets
      **********************************************************************/
 
-    /** Test if a socket is OK to use.
+    /** Infinite timeout.
      */
-     #define IS_SOCKET(s) (((s) >= 0) && (((unsigned int) s) < sizeof(_sockets) / sizeof(_sockets[0])) \
-             && (_sockets[s].handle != SOCKET_ERROR))
+    #define TIMEOUT_BLOCKING -1
 
-    /** Find or create the socket for a given handle.
-     *
-     * @param the handle, if a socket is to be found.
-     * @return the socket, or SOCKET_ERROR if not found/created.
+    /** Socket "unused" value
      */
-    int findSocket(int handle = SOCKET_ERROR/* = CREATE*/);
+    #define SOCKET_UNUSED - 1
+
+    /** Maximum number of bytes that can be written to a socket.
+     */
+    #define MAX_WRITE_SIZE 1024
+
+    /** Maximum number of bytes that can be read from a socket.
+     */
+    #define MAX_READ_SIZE 128
+
+    /** Management structure for sockets.
+     */
+    typedef struct {
+        int modemHandle;
+        int timeoutMilliseconds;
+        volatile bool connected;
+        volatile nsapi_size_t pending;
+    } SockCtrl;
+
+    /** Socket storage.
+     */
+    SockCtrl _sockets[12];
+
+    /** Storage for a single IP address.
+     */
+    char *_ip;
+
+    /** Provide access to the NetworkStack object
+     *
+     *  @return The underlying NetworkStack object
+     */
+     virtual NetworkStack *get_stack();
+
+    /** Get the local IP address.
+     *
+     *  @return         Null-terminated representation of the local IP address
+     *                  or null if not yet connected.
+     */
+    const char *get_ip_address();
+
+    /** Translates a hostname to an IP address with specific version.
+     *
+     *  The hostname may be either a domain name or an IP address. If the
+     *  hostname is an IP address, no network transactions will be performed.
+     *
+     *  If no stack-specific DNS resolution is provided, the hostname
+     *  will be resolve using a UDP socket on the stack.
+     *
+     *  @param host     Hostname to resolve.
+     *  @param address  Destination for the host SocketAddress.
+     *  @param version  IP version of address to resolve, NSAPI_UNSPEC indicates
+     *                  version is chosen by the stack (defaults to NSAPI_UNSPEC).
+     *  @return         0 on success, negative error code on failure.
+     */
+    virtual nsapi_error_t gethostbyname(const char *host,
+                                        SocketAddress *address,
+                                        nsapi_version_t version = NSAPI_UNSPEC);
+
+    /** Open a socket.
+     *
+     *  Creates a network socket and stores it in the specified handle.
+     *  The handle must be passed to following calls on the socket.
+     *
+     *  @param handle   Destination for the handle to a newly created socket.
+     *  @param proto    Protocol of socket to open, NSAPI_TCP or NSAPI_UDP.
+     *  @param port     Optional port to bind to.
+     *  @return         0 on success, negative error code on failure.
+     */
+    virtual nsapi_error_t socket_open(nsapi_socket_t *handle, nsapi_protocol_t proto);
+
+    /** Close a socket.
+     *
+     *  Closes any open connection and deallocates any memory associated
+     *  with the socket.
+     *
+     *  @param handle   Socket handle.
+     *  @return         0 on success, negative error code on failure.
+     */
+    virtual nsapi_error_t socket_close(nsapi_socket_t handle);
+
+    /** Bind a specific address to a socket.
+     *
+     *  Binding a socket specifies the address and port on which to receive
+     *  data. If the IP address is zeroed, only the port is bound.
+     *
+     *  @param handle   Socket handle
+     *  @param address  Local address to bind
+     *  @return         0 on success, negative error code on failure.
+     */
+    virtual nsapi_error_t socket_bind(nsapi_socket_t handle, const SocketAddress &address);
+
+    /** Connects TCP socket to a remote host.
+     *
+     *  Initiates a connection to a remote server specified by the
+     *  indicated address.
+     *
+     *  @param handle   Socket handle
+     *  @param address  The SocketAddress of the remote host
+     *  @return         0 on success, negative error code on failure
+     */
+    virtual nsapi_error_t socket_connect(nsapi_socket_t handle, const SocketAddress &address);
+
+    /** Send data over a TCP socket.
+     *
+     *  The socket must be connected to a remote host. Returns the number of
+     *  bytes sent from the buffer.
+     *
+     *  @param handle   Socket handle.
+     *  @param data     Buffer of data to send to the host.
+     *  @param size     Size of the buffer in bytes.
+     *  @return         Number of sent bytes on success, negative error
+     *                  code on failure.
+     */
+    virtual nsapi_size_or_error_t socket_send(nsapi_socket_t handle,
+                                              const void *data, nsapi_size_t size);
+
+    /** Send a packet over a UDP socket.
+     *
+     *  Sends data to the specified address. Returns the number of bytes
+     *  sent from the buffer.
+     *
+     *  @param handle   Socket handle.
+     *  @param address  The SocketAddress of the remote host.
+     *  @param data     Buffer of data to send to the host.
+     *  @param size     Size of the buffer in bytes.
+     *  @return         Number of sent bytes on success, negative error
+     *                  code on failure.
+     */
+    virtual nsapi_size_or_error_t socket_sendto(nsapi_socket_t handle, const SocketAddress &address,
+                                                const void *data, nsapi_size_t size);
+
+    /** Receive data over a TCP socket.
+     *
+     *  The socket must be connected to a remote host. Returns the number of
+     *  bytes received into the buffer.
+     *
+     *  @param handle   Socket handle.
+     *  @param data     Destination buffer for data received from the host.
+     *  @param size     Size of the buffer in bytes.
+     *  @return         Number of received bytes on success, negative error
+     *                  code on failure.
+     */
+    virtual nsapi_size_or_error_t socket_recv(nsapi_socket_t handle,
+                                              void *data, nsapi_size_t size);
+
+    /** Receive a packet over a UDP socket.
+     *
+     *  Receives data and stores the source address in address if address
+     *  is not NULL. Returns the number of bytes received into the buffer.
+     *
+     *  @param handle   Socket handle.
+     *  @param address  Destination for the source address or NULL.
+     *  @param data     Destination buffer for data received from the host.
+     *  @param size     Size of the buffer in bytes.
+     *  @return         Number of received bytes on success, negative error
+     *                  code on failure.
+     */
+    virtual nsapi_size_or_error_t socket_recvfrom(nsapi_socket_t handle, SocketAddress *address,
+                                                  void *data, nsapi_size_t size);
+
+    /** Listen for connections on a TCP socket
+     *
+     *  Marks the socket as a passive socket that can be used to accept
+     *  incoming connections.
+     *
+     *  @param backlog  Number of pending connections that can be queued
+     *                  simultaneously, defaults to 1
+     *  @return         0 on success, negative error code on failure
+     */
+    virtual nsapi_error_t socket_listen(nsapi_socket_t handle, int backlog);
+
+    /** Accepts a connection on a TCP socket
+     *
+     *  The server socket must be bound and set to listen for connections.
+     *  On a new connection, creates a network socket and stores it in the
+     *  specified handle. The handle must be passed to following calls on
+     *  the socket.
+     *
+     *  A stack may have a finite number of sockets, in this case
+     *  NSAPI_ERROR_NO_SOCKET is returned if no socket is available.
+     *
+     *  This call is non-blocking. If accept would block,
+     *  NSAPI_ERROR_WOULD_BLOCK is returned immediately.
+     *
+     *  @param server   Socket handle to server to accept from
+     *  @param handle   Destination for a handle to the newly created socket
+     *  @param address  Destination for the remote address or NULL
+     *  @return         0 on success, negative error code on failure
+     */
+     virtual nsapi_error_t socket_accept(nsapi_socket_t server,
+                                         nsapi_socket_t *handle, SocketAddress *address=0);
+
+    /** Register a callback on state change of the socket
+     *
+     *  The specified callback will be called on state changes such as when
+     *  the socket can recv/send/accept successfully and on when an error
+     *  occurs. The callback may also be called spuriously without reason.
+     *
+     *  The callback may be called in an interrupt context and should not
+     *  perform expensive operations such as recv/send calls.
+     *
+     *  @param handle   Socket handle
+     *  @param callback Function to call on state change
+     *  @param data     Argument to pass to callback
+     */
+    virtual void socket_attach(nsapi_socket_t handle, void (*callback)(void *), void *data);
+
+    /** Get the number of bytes pending for reading for this socket.
+     *
+     * @param handle    The socket handle.
+     * @return          The number of bytes pending on success, negative error
+     *                  code on failure.
+     */
+    nsapi_size_or_error_t socket_readable(nsapi_socket_t handle);
+
+    /** Set blocking or non-blocking mode of the socket.
+     *
+     *  set_blocking(false) is equivalent to set_timeout(-1).
+     *  set_blocking(true) is equivalent to set_timeout(0).
+     *
+     *  @param blocking true for blocking mode, false for non-blocking mode.
+     *  @return         0 on success, negative error code on failure
+     */
+    nsapi_error_t set_blocking(nsapi_socket_t handle, bool blocking);
+
+    /** Set timeout on blocking socket operations.
+     *
+     *  set_timeout(-1) is equivalent to set_blocking(true).
+     *
+     *  @param timeout  Timeout in milliseconds
+     *  @return         0 on success, negative error code on failure
+     */
+    nsapi_error_t set_timeout(nsapi_socket_t handle, int timeout);
+
+    /** Find or create the socket for a modem handle.
+     *
+     * @param modemHandle  the modem handle, the socket for it is to be found.
+     * @return             the socket, or NULL if not found/created.
+     */
+    SockCtrl * findSocket(int modemHandle = SOCKET_UNUSED);
 
     /** Callback for Socket Read URC.
      */
@@ -566,6 +606,35 @@ protected:
      * PROTECTED: HTTP
      **********************************************************************/
 
+    /**
+     * The profile to use.
+     */
+    #define PROFILE "0"
+
+    /**
+     * Test if an HTTP profile is OK to use.
+     */
+    #define IS_PROFILE(p) (((p) >= 0) && (((unsigned int) p) < (sizeof(_httpProfiles)/sizeof(_httpProfiles[0]))) \
+                           && (_httpProfiles[p].modemHandle != HTTP_PROF_UNUSED))
+
+    /** Management structure for HTTP profiles.
+     *
+     * It is possible to have up to 4 different HTTP profiles (LISA-C200, LISA-U200 and SARA-G350) having:
+     *
+     * @param handle the current HTTP profile is in handling state or not (default value is HTTP_ERROR).
+     * @param timeout_ms the timeout for the current HTTP command.
+     * @param pending the status for the current HTTP command (in processing state or not).
+     * @param cmd the code for the current HTTP command.
+     * @param result the result for the current HTTP command once processed.
+     */
+     typedef struct {
+         int modemHandle;
+         int timeout_ms;
+         bool pending;
+         int cmd;
+         int result;
+     } HttpProfCtrl;
+
     /** The HTTP profile storage.
      */
     HttpProfCtrl _httpProfiles[4];
@@ -577,10 +646,10 @@ protected:
     /** Find a profile with a given handle.  If no handle is given, find the next
      * free profile.
      *
-     * @param handle the handle of the profile to find.
-     * @return the profile handle or, if not found, HTTP_PROF_ERROR.
+     * @param modemHandle the handle of the profile to find.
+     * @return            the profile handle or negative if not found/created.
      */
-    int findProfile(int handle = HTTP_PROF_ERROR);
+    int findProfile(int modemHandle = HTTP_PROF_UNUSED);
 };
 
 #endif // _UBLOX_CELLULAR_INTERFACE_DATA_
