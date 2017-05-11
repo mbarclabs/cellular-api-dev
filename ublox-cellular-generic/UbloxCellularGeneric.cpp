@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#include "UbloxCellularInterfaceExt.h"
-#include "APN_db.h"
+#include "UbloxCellularGeneric.h"
 #include "string.h"
 #if defined(FEATURE_COMMON_PAL)
 #include "mbed_trace.h"
@@ -26,15 +25,11 @@
 #endif
 
 /**********************************************************************
- * PROTECTED METHODS: Generic
- **********************************************************************/
-
-/**********************************************************************
  * PROTECTED METHODS: Short Message Service
  **********************************************************************/
 
-// URC for Short Message listing
-void UbloxCellularInterfaceExt::CMGL_URC()
+// URC for Short Message listing.
+void UbloxCellularGeneric::CMGL_URC()
 {
     int index;
 
@@ -48,28 +43,55 @@ void UbloxCellularInterfaceExt::CMGL_URC()
     }
 }
 
-/**********************************************************************
- * PROTECTED  METHODS: Unstructured Supplementary Service Data
- **********************************************************************/
+// URC for new class 0 SMS messages.
+void UbloxCellularGeneric::CMTI_URC()
+{
+    // our CMGF = 1, i.e., text mode. So we expect response in this format:
+    //+CMTI: <mem>,<index>,
+    //AT Command Manual UBX-13002752, section 11.8.2
+    _at->recv(": %*u,%*u");
+    tr_info("New SMS received");
+}
 
-/**********************************************************************
- * PROTECTED: Module File System
- **********************************************************************/
+// URC for non-class 0 SMS messages.
+void UbloxCellularGeneric::CMT_URC()
+{
+    // our CMGF = 1, i.e., text mode. So we expect response in this format:
+    //+CMT: <oa>,[<alpha>],<scts>[,<tooa>,
+    //<fo>,<pid>,<dcs>,<sca>,<tosca>,
+    //<length>]<CR><LF><data>
+    // By default detailed SMS header CSDH=0 , so we are not expecting  [,<tooa>,
+    //<fo>,<pid>,<dcs>,<sca>,<tosca>
+    //AT Command Manual UBX-13002752, section 11.8.2
+    char sms[50];
+    char service_timestamp[15];
+
+    _at->recv(": %49[^\"]\",,%14[^\"]\"\n", sms, service_timestamp);
+
+    tr_info("SMS:%s, %s", service_timestamp, sms);
+}
 
 /**********************************************************************
  * PUBLIC METHODS: Generic
  **********************************************************************/
 
 // Constructor.
-UbloxCellularInterfaceExt::UbloxCellularInterfaceExt(bool debugOn, PinName tx, PinName rx, int baud):
-                           UbloxCellularInterface(debugOn, tx, rx, baud)
+UbloxCellularGeneric::UbloxCellularGeneric(bool debug_on,
+                                           PinName tx,
+                                           PinName rx,
+                                           int baud):
+                      UbloxCellularGenericBase(debug_on, tx, rx, baud)
 {
     _smsIndex = NULL;
     _smsNum = 0;
-}
+
+    // URCs, handled out of band
+    _at->oob("+CMGL", callback(this, &UbloxCellularGeneric::CMGL_URC));
+    _at->oob("+CMT", callback(this, &UbloxCellularGeneric::CMT_URC));
+    _at->oob("+CMTI", callback(this, &UbloxCellularGeneric::CMTI_URC));}
 
 // Destructor.
-UbloxCellularInterfaceExt::~UbloxCellularInterfaceExt()
+UbloxCellularGeneric::~UbloxCellularGeneric()
 {
     // TODO
 }
@@ -79,15 +101,14 @@ UbloxCellularInterfaceExt::~UbloxCellularInterfaceExt()
  **********************************************************************/
 
 // Count the number of messages on the module.
-int UbloxCellularInterfaceExt::smsList(const char* stat /*= "ALL"*/, int* index /*=NULL*/, int num /*= 0*/)
+int UbloxCellularGeneric::smsList(const char* stat /*= "ALL"*/, int* index /*=NULL*/, int num /*= 0*/)
 {
     int numMessages = -1;
     LOCK();
 
     _smsIndex = index;
     _smsNum = num;
-    // Use a callback to capture the result
-    _at->oob("+CMGL", callback(this, &UbloxCellularInterfaceExt::CMGL_URC));
+    // There is a callback to capture the result
     // +CMGL: <ix>,...
     if (_at->send("AT+CMGL=\"%s\"\r\n", stat) && _at->recv("OK")) {
         numMessages = num - _smsNum;
@@ -101,13 +122,13 @@ int UbloxCellularInterfaceExt::smsList(const char* stat /*= "ALL"*/, int* index 
 }
 
 // Send an SMS message.
-bool UbloxCellularInterfaceExt::smsSend(const char* num, const char* buf)
+bool UbloxCellularGeneric::smsSend(const char* num, const char* buf)
 {
     bool success = false;
     LOCK();
 
     if (_at->send("AT+CMGS=\"%s\"",num) && _at->recv("@")) {
-        if ((_at->write(buf, strlen(buf)) >= (int) strlen(buf)) &&
+        if ((_at->write(buf, (int) strlen(buf)) >= (int) strlen(buf)) &&
             (_at->putc(0x1A) == 0x1A) &&  // CTRL-Z
             _at->recv("OK")) {
             success = true;
@@ -118,7 +139,7 @@ bool UbloxCellularInterfaceExt::smsSend(const char* num, const char* buf)
     return success;
 }
 
-bool UbloxCellularInterfaceExt::smsDelete(int index)
+bool UbloxCellularGeneric::smsDelete(int index)
 {
     bool success;
     LOCK();
@@ -129,7 +150,7 @@ bool UbloxCellularInterfaceExt::smsDelete(int index)
     return success;
 }
 
-bool UbloxCellularInterfaceExt::smsRead(int index, char* num, char* buf, int len)
+bool UbloxCellularGeneric::smsRead(int index, char* num, char* buf, int len)
 {
     bool success = false;
     char * tmpBuf;
@@ -166,7 +187,7 @@ bool UbloxCellularInterfaceExt::smsRead(int index, char* num, char* buf, int len
  **********************************************************************/
 
 // Perform a USSD command.
-bool UbloxCellularInterfaceExt::ussdCommand(const char* cmd, char* buf)
+bool UbloxCellularGeneric::ussdCommand(const char* cmd, char* buf)
 {
     bool success;
     LOCK();
@@ -185,7 +206,7 @@ bool UbloxCellularInterfaceExt::ussdCommand(const char* cmd, char* buf)
  **********************************************************************/
 
 // Delete a file from the module's file system.
-bool UbloxCellularInterfaceExt::delFile(const char* filename)
+bool UbloxCellularGeneric::delFile(const char* filename)
 {
     bool success;
     LOCK();
@@ -197,7 +218,7 @@ bool UbloxCellularInterfaceExt::delFile(const char* filename)
 }
 
 // Write a buffer of data to a file in the module's file system.
-int UbloxCellularInterfaceExt::writeFile(const char* filename, const char* buf, int len)
+int UbloxCellularGeneric::writeFile(const char* filename, const char* buf, int len)
 {
     int bytesWritten = -1;
     LOCK();
@@ -212,7 +233,8 @@ int UbloxCellularInterfaceExt::writeFile(const char* filename, const char* buf, 
     return bytesWritten;
 }
 
-int UbloxCellularInterfaceExt::readFile(const char* filename, char* buf, int len)
+// Read a buffer of data from a file in the module's file system.
+int UbloxCellularGeneric::readFile(const char* filename, char* buf, int len)
 {
     int bytesRead = -1;
     char respFilename[48];
@@ -245,7 +267,7 @@ int UbloxCellularInterfaceExt::readFile(const char* filename, char* buf, int len
 }
 
 //The following function is useful for reading files with a dimension greater than 128 bytes
-int UbloxCellularInterfaceExt::readFileNew(const char* filename, char* buf, int len)
+int UbloxCellularGeneric::readFileNew(const char* filename, char* buf, int len)
 {
     int countBytes = -1;  // Counter for file reading (default value)
     int bytesToRead = fileSize(filename);  // Retrieve the size of the file
@@ -304,7 +326,8 @@ int UbloxCellularInterfaceExt::readFileNew(const char* filename, char* buf, int 
     return countBytes;
 }
 
-int UbloxCellularInterfaceExt::fileSize(const char* filename)
+// Return the size of a file.
+int UbloxCellularGeneric::fileSize(const char* filename)
 {
     int returnValue = -1;
     int fileSize;

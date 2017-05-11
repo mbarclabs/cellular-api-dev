@@ -2,7 +2,7 @@
 #include "greentea-client/test_env.h"
 #include "unity.h"
 #include "utest.h"
-#include "UbloxCellularInterfaceExt.h"
+#include "UbloxCellularInterfaceGenericAtDataExt.h"
 #include "UDPSocket.h"
 #include "FEATURE_COMMON_PAL/nanostack-libservice/mbed-client-libservice/common_functions.h"
 #include "mbed_trace.h"
@@ -32,7 +32,7 @@ using namespace utest::v1;
 static Mutex mtx;
 
 // An instance of the cellular interface
-static UbloxCellularInterfaceExt *pInterface = new UbloxCellularInterfaceExt(true);
+static UbloxCellularInterfaceGenericAtDataExt *pInterface = new UbloxCellularInterfaceGenericAtDataExt(true);
 
 // ----------------------------------------------------------------
 // PRIVATE FUNCTIONS
@@ -56,6 +56,9 @@ static void unlock()
 // Do a thing with a thing
 void test_a_thing() {
 
+    pInterface->deinit();
+    TEST_ASSERT(pInterface->connect(NULL, TEST_APN, TEST_USERNAME, TEST_PASSWORD) == 0);
+    TEST_ASSERT(pInterface->disconnect() == 0);
 }
 
 // ----------------------------------------------------------------

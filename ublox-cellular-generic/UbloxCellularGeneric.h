@@ -13,20 +13,21 @@
  * limitations under the License.
  */
 
-#ifndef _UBLOX_CELLULAR_INTERFACE_EXT_
-#define _UBLOX_CELLULAR_INTERFACE_EXT_
+#ifndef _UBLOX_CELLULAR_GENERIC_
+#define _UBLOX_CELLULAR_GENERIC_
 
-#include "UbloxCellularInterface.h"
+#include "TARGET_UBLOX_MODEM_GENERIC/ublox_modem_driver/UbloxCellularGenericBase.h"
 
-/** UbloxCellularInterfaceExt class
- * This interface extends the UbloxCellularInterface to
- * include SMS, USSD and module File System functionality.
+/** UbloxCellularGeneric class
+ * This interface provide SMS, USSD and
+ * module File System functionality.
  */
-class UbloxCellularInterfaceExt : public UbloxCellularInterface {
+class UbloxCellularGeneric: virtual public UbloxCellularGenericBase {
 
 public:
-    UbloxCellularInterfaceExt(bool debugOn = false, PinName tx = MDMTXD, PinName rx = MDMRXD, int baud = MBED_CONF_UBLOX_MODEM_GENERIC_BAUD_RATE);
-    ~UbloxCellularInterfaceExt();
+    UbloxCellularGeneric(bool debugOn = false, PinName tx = MDMTXD, PinName rx = MDMRXD,
+                         int baud = MBED_CONF_UBLOX_MODEM_GENERIC_BAUD_RATE);
+    ~UbloxCellularGeneric();
 
 
     /**********************************************************************
@@ -137,10 +138,6 @@ public:
 protected:
 
     /**********************************************************************
-     * PROTECTED: Generic
-     **********************************************************************/
-
-    /**********************************************************************
      * PROTECTED: Short Message Service
      **********************************************************************/
 
@@ -161,9 +158,17 @@ protected:
      */
     int _smsNum;
 
-    /** URC for Short Message listing
+    /** URC for Short Message listing.
      */
     void CMGL_URC();
+
+    /** URC for new class 0 SMS messages.
+     */
+    void CMTI_URC();
+
+    /** URC for non-class 0 SMS messages.
+     */
+    void CMT_URC();
 
     /**********************************************************************
      * PROTECTED: File System
@@ -172,7 +177,6 @@ protected:
     /** The maximum size of a single read of file data.
      */
     #define FILE_BUFFER_SIZE 128
-
 };
 
-#endif // _UBLOX_CELLULAR_INTERFACE_EXT_
+#endif // _UBLOX_CELLULAR_INTERFACE_GENERIC_
