@@ -28,7 +28,10 @@
 class UbloxCellularInterfaceGenericAtDataExt : public UbloxCellularInterfaceGenericAtData, public UbloxCellularGeneric {
 
 public:
-     UbloxCellularInterfaceGenericAtDataExt(bool debug_on = false, PinName tx = MDMTXD, PinName rx = MDMRXD, int baud = MBED_CONF_UBLOX_MODEM_GENERIC_BAUD_RATE);
+     UbloxCellularInterfaceGenericAtDataExt(bool debug_on = false,
+                                            PinName tx = MDMTXD,
+                                            PinName rx = MDMRXD,
+                                            int baud = MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE);
     ~UbloxCellularInterfaceGenericAtDataExt();
 
     /**********************************************************************
