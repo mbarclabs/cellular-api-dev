@@ -2,7 +2,7 @@
 #include "BufferedSerial.h"
 
 //#include "TARGET_GENERIC_MODEM/generic_modem_driver/ReferenceCellularInterface.h"
-#include "TARGET_UBLOX_MODEM_GENERIC/ublox_modem_driver/UbloxCellularInterface.h"
+#include "TARGET_UBLOX_MODEM_GENERIC/ublox_modem_driver/UbloxCellularInterfaceGeneric.h"
 #include "UDPSocket.h"
 #include "FEATURE_COMMON_PAL/nanostack-libservice/mbed-client-libservice/common_functions.h"
 #if defined(FEATURE_COMMON_PAL)
@@ -19,7 +19,7 @@ static const int port = 123;
 static Mutex mtx;
 static nsapi_error_t connection_down_reason = 0;
 
-void ppp_connection_down_cb(nsapi_error_t error)
+void connection_down_cb(nsapi_error_t error)
 {
     switch (error) {
         case NSAPI_ERROR_CONNECTION_LOST:
@@ -48,7 +48,7 @@ static void unlock()
 }
 
 //int do_ntp(ReferenceCellularInterface *pInterface)
-int do_ntp(UbloxCellularInterface *pInterface)
+int do_ntp(UbloxCellularInterfaceGeneric *pInterface)
 {
     int ntp_values[12] = { 0 };
     time_t TIME1970 = 2208988800U;
@@ -117,7 +117,7 @@ int do_ntp(UbloxCellularInterface *pInterface)
 int main()
 {
     bool exit = false;
-    UbloxCellularInterface *pInterface = new UbloxCellularInterface(true);
+    UbloxCellularInterfaceGeneric *pInterface = new UbloxCellularInterfaceGeneric(true);
     //ReferenceCellularInterface *pInterface = new ReferenceCellularInterface(true);
 
     mbed_trace_init();
@@ -125,9 +125,9 @@ int main()
     mbed_trace_mutex_wait_function_set(lock);
     mbed_trace_mutex_release_function_set(unlock);
 
-    pInterface->set_credentials("giffgaff.com", "giffgaff");
-    //pInterface->set_credentials("jtm2m");
-    pInterface->connection_status_cb(ppp_connection_down_cb);
+    //pInterface->set_credentials("giffgaff.com", "giffgaff");
+    pInterface->set_credentials("jtm2m");
+    pInterface->connection_status_cb(connection_down_cb);
 
     while (!exit) {
         pInterface->connect();
