@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "UbloxCellularInterfaceGenericAtDataExt.h"
+#include "UbloxCellularDriverGenAtDataExt.h"
 #include "APN_db.h"
 #if defined(FEATURE_COMMON_PAL)
 #include "mbed_trace.h"
@@ -29,7 +29,7 @@
  **********************************************************************/
 
 // Callback for HTTP result code handling.
-void UbloxCellularInterfaceGenericAtDataExt::UUHTTPCR_URC()
+void UbloxCellularDriverGenAtDataExt::UUHTTPCR_URC()
 {
     char buf[32];
     int a, b, c;
@@ -45,7 +45,7 @@ void UbloxCellularInterfaceGenericAtDataExt::UUHTTPCR_URC()
 }
 
 // Find a given profile.  NOTE: LOCK() before calling.
-int UbloxCellularInterfaceGenericAtDataExt::findProfile(int modemHandle)
+int UbloxCellularDriverGenAtDataExt::findProfile(int modemHandle)
 {
     for (unsigned int profile = 0; profile < (sizeof(_httpProfiles)/sizeof(_httpProfiles[0]));
          profile++) {
@@ -66,11 +66,11 @@ int UbloxCellularInterfaceGenericAtDataExt::findProfile(int modemHandle)
  **********************************************************************/
 
 // Constructor.
-UbloxCellularInterfaceGenericAtDataExt::UbloxCellularInterfaceGenericAtDataExt(bool debugOn,
-                                                                               PinName tx,
-                                                                               PinName rx,
-                                                                               int baud):
-                                        UbloxCellularInterfaceGenericAtData(debugOn, tx, rx, baud)
+UbloxCellularDriverGenAtDataExt::UbloxCellularDriverGenAtDataExt(PinName tx,
+                                                                 PinName rx,
+                                                                 int baud,
+                                                                 bool debugOn):
+                                 UbloxCellularDriverGenAtData(tx, rx, baud, debugOn)
 {
     // Zero Cell Locate stuff
     _locRcvPos = 0;
@@ -84,11 +84,11 @@ UbloxCellularInterfaceGenericAtDataExt::UbloxCellularInterfaceGenericAtDataExt(b
     }
 
     // URC handler for HTTP
-    _at->oob("+UUHTTPCR", callback(this, &UbloxCellularInterfaceGenericAtDataExt::UUHTTPCR_URC));
+    _at->oob("+UUHTTPCR", callback(this, &UbloxCellularDriverGenAtDataExt::UUHTTPCR_URC));
 }
 
 // Destructor.
-UbloxCellularInterfaceGenericAtDataExt::~UbloxCellularInterfaceGenericAtDataExt()
+UbloxCellularDriverGenAtDataExt::~UbloxCellularDriverGenAtDataExt()
 {
 }
 
@@ -97,7 +97,7 @@ UbloxCellularInterfaceGenericAtDataExt::~UbloxCellularInterfaceGenericAtDataExt(
  **********************************************************************/
 
 // Find a free profile.
-int UbloxCellularInterfaceGenericAtDataExt::httpFindProfile()
+int UbloxCellularDriverGenAtDataExt::httpFindProfile()
 {
     int profile = HTTP_PROF_UNUSED;
     LOCK();
@@ -119,7 +119,7 @@ int UbloxCellularInterfaceGenericAtDataExt::httpFindProfile()
 }
 
 // Set the blocking/timeout state of a profile.
-bool UbloxCellularInterfaceGenericAtDataExt::httpSetBlocking(int profile, int timeout_ms)
+bool UbloxCellularDriverGenAtDataExt::httpSetBlocking(int profile, int timeout_ms)
 {
     bool success = false;
     LOCK();
@@ -135,7 +135,7 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpSetBlocking(int profile, int ti
 }
 
 // Set the profile so that it's suitable for commands.
-bool UbloxCellularInterfaceGenericAtDataExt::httpSetProfileForCmdMng(int profile)
+bool UbloxCellularDriverGenAtDataExt::httpSetProfileForCmdMng(int profile)
 {
     bool success = false;
     LOCK();
@@ -152,7 +152,7 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpSetProfileForCmdMng(int profile
 }
 
 // Free a profile.
-bool UbloxCellularInterfaceGenericAtDataExt::httpFreeProfile(int profile)
+bool UbloxCellularDriverGenAtDataExt::httpFreeProfile(int profile)
 {
     LOCK();
 
@@ -170,7 +170,7 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpFreeProfile(int profile)
 }
 
 // Set a profile back to defaults.
-bool UbloxCellularInterfaceGenericAtDataExt::httpResetProfile(int httpProfile)
+bool UbloxCellularDriverGenAtDataExt::httpResetProfile(int httpProfile)
 {
     bool success = false;
     LOCK();
@@ -183,9 +183,9 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpResetProfile(int httpProfile)
 }
 
 // Set HTTP parameters.
-bool UbloxCellularInterfaceGenericAtDataExt::httpSetPar(int httpProfile,
-                                                        HttpOpCode httpOpCode,
-                                                        const char * httpInPar)
+bool UbloxCellularDriverGenAtDataExt::httpSetPar(int httpProfile,
+                                                 HttpOpCode httpOpCode,
+                                                 const char * httpInPar)
 {
     bool success = false;
     int httpInParNum = 0;
@@ -231,14 +231,14 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpSetPar(int httpProfile,
 }
 
 // Perform an HTTP command.
-bool UbloxCellularInterfaceGenericAtDataExt::httpCommand(int httpProfile,
-                                                         HttpCmd httpCmdCode,
-                                                         const char *httpPath,
-                                                         const char *httpOut,
-                                                         const char *httpIn,
-                                                         int httpContentType,
-                                                         const char *httpCustomPar,
-                                                         char *buf, int len)
+bool UbloxCellularDriverGenAtDataExt::httpCommand(int httpProfile,
+                                                  HttpCmd httpCmdCode,
+                                                  const char *httpPath,
+                                                  const char *httpOut,
+                                                  const char *httpIn,
+                                                  int httpContentType,
+                                                  const char *httpCustomPar,
+                                                  char *buf, int len)
 {
     bool success = false;
     LOCK();
@@ -345,7 +345,7 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpCommand(int httpProfile,
 }
 
 // Return a string representing an AT command.
-const char * UbloxCellularInterfaceGenericAtDataExt::getHttpCmd(int httpCmdCode)
+const char * UbloxCellularDriverGenAtDataExt::getHttpCmd(int httpCmdCode)
 {
     const char * str = "HTTP command not recognised";
 

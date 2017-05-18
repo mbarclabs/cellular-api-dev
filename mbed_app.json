@@ -2,16 +2,45 @@
     "config": {
         "buffer-size": { "value": 0 },
         "platform": { "help": "Options: UBLOX, MTS_DRAGONFLY",
-                      "value": "UBLOX"}
-    },
-    "macros": ["OS_MAINSTKSIZE=512"],
+                      "value": "UBLOX"},
+        "run-sim-pin-change-tests": {
+            "value": 0
+        },
+        "default-pin": {
+            "value": "\"5134\""
+        },
+        "alt-pin": {
+            "value": "\"9876\""
+        },
+        "incorrect-pin": {
+            "value": "\"1530\""
+        },
+       "apn": {
+            "value": "\"jtm2m\""
+        },
+        "username": {
+            "value": 0
+        },
+        "password": {
+            "value": 0
+        },
+        "echo-server": {
+            "value": "\"ciot.it-sgn.u-blox.com\""
+        },
+        "echo-udp-port": {
+            "value": 5050
+        },
+        "echo-tcp-port": {
+            "value": 5055
+        }
+     },
     "target_overrides": {
         "*": {
             "lwip.ipv4-enabled": true,
             "lwip.ipv6-enabled": false,
             "lwip.ethernet-enabled": false,
             "lwip.ppp-enabled": true,
-            "lwip.tcp-enabled": false,
+            "lwip.tcp-enabled": true,
             "target.features_add": ["LWIP", "COMMON_PAL"],
             "platform.stdio-convert-newlines": true,
             "platform.stdio-baud-rate": 9600,
@@ -19,6 +48,8 @@
             "lwip.debug-enabled": false,
             "lwip.enable-ppp-trace": false,
             "lwip.use-mbed-trace": false,
+            "platform.buffered-serial-txbuf-size": 585,
+            "platform.buffered-serial-rxbuf-size": 585,
             "mbed-trace.enable": 1
         }
     }

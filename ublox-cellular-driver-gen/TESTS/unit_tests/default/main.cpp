@@ -2,7 +2,7 @@
 #include "greentea-client/test_env.h"
 #include "unity.h"
 #include "utest.h"
-#include "UbloxCellularInterfaceGenericAtDataExt.h"
+#include "UbloxCellularDriverGen.h"
 #include "UDPSocket.h"
 #include "FEATURE_COMMON_PAL/nanostack-libservice/mbed-client-libservice/common_functions.h"
 #include "mbed_trace.h"
@@ -14,32 +14,14 @@ using namespace utest::v1;
 // COMPILE-TIME MACROS
 // ----------------------------------------------------------------
 
-// These macros can be overridden with an mbed_app.json file and
-// contents of the following form:
-//
-//{
-//    "config": {
-//        "apn": {
-//            "value": "\"my_apn\""
-//        }
-//}
-
-// The credentials of the SIM in the board.
-#ifndef MBED_CONF_APP_DEFAULT_PIN
-// Note: this is the PIN for the SIM with ICCID
-// 8944501104169548380.
-# define MBED_CONF_APP_DEFAULT_PIN "5134"
+#ifndef TEST_APN
+# define TEST_APN         "jtm2m"
 #endif
-
-// Network credentials.
-#ifndef MBED_CONF_APP_APN
-# define MBED_CONF_APP_APN         "jtm2m"
+#ifndef TEST_USERNAME
+# define TEST_USERNAME    NULL
 #endif
-#ifndef MBED_CONF_APP_USERNAME
-# define MBED_CONF_APP_USERNAME    NULL
-#endif
-#ifndef MBED_CONF_APP_PASSWORD
-# define MBED_CONF_APP_PASSWORD    NULL
+#ifndef TEST_PASSWORD
+# define TEST_PASSWORD    NULL
 #endif
 
 // ----------------------------------------------------------------
@@ -49,8 +31,11 @@ using namespace utest::v1;
 // Lock for debug prints
 static Mutex mtx;
 
-// An instance of the cellular interface
-static UbloxCellularInterfaceGenericAtDataExt *pInterface = new UbloxCellularInterfaceGenericAtDataExt(true);
+// An instance of the generic cellular class
+static UbloxCellularDriverGen *pDriver =
+       new UbloxCellularDriverGen(MDMTXD, MDMRXD,
+                                  MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
+                                  true);
 
 // ----------------------------------------------------------------
 // PRIVATE FUNCTIONS
@@ -74,10 +59,6 @@ static void unlock()
 // Do a thing with a thing
 void test_a_thing() {
 
-    pInterface->deinit();
-    TEST_ASSERT(pInterface->connect(MBED_CONF_APP_DEFAULT_PIN, MBED_CONF_APP_APN,
-                                    MBED_CONF_APP_USERNAME, MBED_CONF_APP_PASSWORD) == 0);
-    TEST_ASSERT(pInterface->disconnect() == 0);
 }
 
 // ----------------------------------------------------------------

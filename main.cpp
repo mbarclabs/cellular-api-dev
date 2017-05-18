@@ -1,8 +1,9 @@
 #include "mbed.h"
 #include "BufferedSerial.h"
 
-//#include "TARGET_GENERIC_MODEM/generic_modem_driver/ReferenceCellularInterface.h"
-#include "TARGET_UBLOX_MODEM_GENERIC/ublox_modem_driver/UbloxCellularInterfaceGeneric.h"
+//#include "TARGET_GENERIC_MODEM/generic_modem_driver/ReferenceCellularDriver.h"
+#include "TARGET_UBLOX_MODEM_GENERIC_AT_DATA/ublox_modem_driver/UbloxCellularDriverGenAtData.h"
+//#include "TARGET_UBLOX_MODEM_GENERIC/ublox_modem_driver/UbloxCellularDriverGenPppData.h"
 #include "UDPSocket.h"
 #include "FEATURE_COMMON_PAL/nanostack-libservice/mbed-client-libservice/common_functions.h"
 #if defined(FEATURE_COMMON_PAL)
@@ -14,6 +15,8 @@
 #define tr_error(...) (void(0)) //dummies if feature common pal is not added
 #endif //defined(FEATURE_COMMON_PAL)
 
+//static const char *host_name = "echo.u-blox.com";
+//static const int port = 7;
 static const char *host_name = "2.pool.ntp.org";
 static const int port = 123;
 static Mutex mtx;
@@ -47,22 +50,23 @@ static void unlock()
     mtx.unlock();
 }
 
-//int do_ntp(ReferenceCellularInterface *pInterface)
-int do_ntp(UbloxCellularInterfaceGeneric *pInterface)
+//int do_ntp(ReferenceCellularDriver *pDriver)
+int do_ntp(UbloxCellularDriverGenAtData *pDriver)
+//int do_ntp(UbloxCellularDriverGenPppData *pDriver)
 {
     int ntp_values[12] = { 0 };
     time_t TIME1970 = 2208988800U;
 
     UDPSocket sock;
 
-    int ret = sock.open(pInterface);
+    int ret = sock.open(pDriver);
     if (ret) {
         tr_error("UDPSocket.open() fails, code: %d", ret);
         return -1;
     }
 
     SocketAddress nist;
-    ret = pInterface->gethostbyname(host_name, &nist);
+    ret = pDriver->gethostbyname(host_name, &nist);
     if (ret) {
         tr_error("Couldn't resolve remote host: %s, code: %d", host_name, ret);
         return -1;
@@ -86,10 +90,9 @@ int do_ntp(UbloxCellularInterfaceGeneric *pInterface)
     if (n > 0) {
         tr_debug("UDP: Recved from NTP server %d Bytes", n);
         tr_debug("UDP: Values returned by NTP server:");
-        for (size_t i = 0; i < sizeof(ntp_values) / sizeof(ntp_values[0]);
-                ++i) {
-            tr_debug("\t[%02d] 0x%"PRIX32, i,
-                   common_read_32_bit((uint8_t*) &(ntp_values[i])));
+        for (size_t i = 0; i < sizeof(ntp_values) / sizeof(ntp_values[0]); ++i) {
+            tr_debug("\t[%02d] 0x%08x", i,
+                     (unsigned int) common_read_32_bit((uint8_t*) &(ntp_values[i])));
             if (i == 10) {
                 const time_t timestamp = common_read_32_bit(
                         (uint8_t*) &(ntp_values[i])) - TIME1970;
@@ -113,26 +116,34 @@ int do_ntp(UbloxCellularInterfaceGeneric *pInterface)
     return -1;
 }
 
-#if 0
+#if 1
 int main()
 {
     bool exit = false;
-    UbloxCellularInterfaceGeneric *pInterface = new UbloxCellularInterfaceGeneric(true);
-    //ReferenceCellularInterface *pInterface = new ReferenceCellularInterface(true);
+
+    //ReferenceCellularDriver *pDriver = new ReferenceCellularDriver(MDMTXD, MDMRXD,
+    //                                       MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
+    //                                       true);
+    //UbloxCellularDriverGenPppData *pDriver = new UbloxCellularDriverGenPppData(MDMTXD, MDMRXD,
+    //                                             MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
+    //                                             true);
+    UbloxCellularDriverGenAtData *pDriver = new UbloxCellularDriverGenAtData(MDMTXD, MDMRXD,
+                                                MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
+                                                true);
 
     mbed_trace_init();
 
     mbed_trace_mutex_wait_function_set(lock);
     mbed_trace_mutex_release_function_set(unlock);
 
-    //pInterface->set_credentials("giffgaff.com", "giffgaff");
-    pInterface->set_credentials("jtm2m");
-    pInterface->connection_status_cb(connection_down_cb);
+    //pDriver->set_credentials("giffgaff.com", "giffgaff");
+    pDriver->set_credentials("jtm2m");
+    pDriver->connection_status_cb(connection_down_cb);
 
     while (!exit) {
-        pInterface->connect();
-        if (pInterface->isConnected()) {
-            do_ntp(pInterface);
+        pDriver->connect();
+        if (pDriver->is_connected()) {
+            do_ntp(pDriver);
         } else {
             tr_warn("Connection down: %d", connection_down_reason);
 

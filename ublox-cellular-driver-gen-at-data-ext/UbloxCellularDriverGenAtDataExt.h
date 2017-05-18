@@ -13,13 +13,13 @@
  * limitations under the License.
  */
 
-#ifndef _UBLOX_CELLULAR_INTERFACE_GENERIC_AT_DATA_EXT_
-#define _UBLOX_CELLULAR_INTERFACE_GENERIC_AT_DATA_EXT_
+#ifndef _UBLOX_CELLULAR_DRIVER_GEN_AT_DATA_EXT_
+#define _UBLOX_CELLULAR_DRIVER_GEN_AT_DATA_EXT_
 
-#include "TARGET_UBLOX_MODEM_GENERIC_AT_DATA/ublox_modem_driver/UbloxCellularInterfaceGenericAtData.h"
-#include "UbloxCellularGeneric.h"
+#include "TARGET_UBLOX_MODEM_GENERIC_AT_DATA/ublox_modem_driver/UbloxCellularDriverGenAtData.h"
+#include "UbloxCellularDriverGen.h"
 
-/** UbloxCellularInterfaceGenericAtDataExt class.
+/** UbloxCellularDriverGenAtDataExt class.
  *
  * This interface extends the UbloxCellularInterfaceAtData to
  * include other features that use the IP stack on board the
@@ -30,14 +30,14 @@
  * file system call and the UbloxCellularGeneric class is
  * where modem file system support is provided.
  */
-class UbloxCellularInterfaceGenericAtDataExt : public UbloxCellularInterfaceGenericAtData, public UbloxCellularGeneric {
+class UbloxCellularDriverGenAtDataExt : public UbloxCellularDriverGenAtData, public UbloxCellularDriverGen {
 
 public:
-     UbloxCellularInterfaceGenericAtDataExt(bool debugOn = false,
-                                            PinName tx = MDMTXD,
-                                            PinName rx = MDMRXD,
-                                            int baud = MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE);
-     virtual ~UbloxCellularInterfaceGenericAtDataExt();
+     UbloxCellularDriverGenAtDataExt(PinName tx = MDMTXD,
+                                     PinName rx = MDMRXD,
+                                     int baud = MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
+                                     bool debugOn = false);
+     virtual ~UbloxCellularDriverGenAtDataExt();
 
     /**********************************************************************
      * PUBLIC: HTTP
@@ -305,4 +305,4 @@ protected:
     int findProfile(int modemHandle = HTTP_PROF_UNUSED);
 };
 
-#endif // _UBLOX_CELLULAR_INTERFACE_GENERIC_AT_DATA_EXT_
+#endif // _UBLOX_CELLULAR_DRIVER_GEN_AT_DATA_EXT_

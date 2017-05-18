@@ -13,21 +13,22 @@
  * limitations under the License.
  */
 
-#ifndef _UBLOX_CELLULAR_GENERIC_
-#define _UBLOX_CELLULAR_GENERIC_
+#ifndef _UBLOX_CELLULAR_DRIVER_GEN_
+#define _UBLOX_CELLULAR_DRIVER_GEN_
 
-#include "TARGET_UBLOX_MODEM_GENERIC/ublox_modem_driver/UbloxCellularGenericBase.h"
+#include "TARGET_UBLOX_MODEM_GENERIC/ublox_modem_driver/UbloxCellularDriverGenBase.h"
 
-/** UbloxCellularGeneric class
+/** UbloxCellularDriverGen class
  * This interface provide SMS, USSD and
  * module File System functionality.
  */
-class UbloxCellularGeneric: virtual public UbloxCellularGenericBase {
+class UbloxCellularDriverGen: virtual public UbloxCellularDriverGenBase {
 
 public:
-    UbloxCellularGeneric(bool debugOn = false, PinName tx = MDMTXD, PinName rx = MDMRXD,
-                         int baud = MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE);
-    ~UbloxCellularGeneric();
+    UbloxCellularDriverGen(PinName tx = MDMTXD, PinName rx = MDMRXD,
+                           int baud = MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
+                           bool debugOn = false);
+    ~UbloxCellularDriverGen();
 
 
     /**********************************************************************
@@ -179,4 +180,4 @@ protected:
     #define FILE_BUFFER_SIZE 128
 };
 
-#endif // _UBLOX_CELLULAR_INTERFACE_GENERIC_
+#endif // _UBLOX_CELLULAR_DRIVER_GEN_

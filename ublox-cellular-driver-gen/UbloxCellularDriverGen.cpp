@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "UbloxCellularGeneric.h"
+#include "UbloxCellularDriverGen.h"
 #include "string.h"
 #if defined(FEATURE_COMMON_PAL)
 #include "mbed_trace.h"
@@ -29,7 +29,7 @@
  **********************************************************************/
 
 // URC for Short Message listing.
-void UbloxCellularGeneric::CMGL_URC()
+void UbloxCellularDriverGen::CMGL_URC()
 {
     int index;
 
@@ -44,7 +44,7 @@ void UbloxCellularGeneric::CMGL_URC()
 }
 
 // URC for new class 0 SMS messages.
-void UbloxCellularGeneric::CMTI_URC()
+void UbloxCellularDriverGen::CMTI_URC()
 {
     // our CMGF = 1, i.e., text mode. So we expect response in this format:
     //+CMTI: <mem>,<index>,
@@ -54,7 +54,7 @@ void UbloxCellularGeneric::CMTI_URC()
 }
 
 // URC for non-class 0 SMS messages.
-void UbloxCellularGeneric::CMT_URC()
+void UbloxCellularDriverGen::CMT_URC()
 {
     // our CMGF = 1, i.e., text mode. So we expect response in this format:
     //+CMT: <oa>,[<alpha>],<scts>[,<tooa>,
@@ -76,24 +76,22 @@ void UbloxCellularGeneric::CMT_URC()
  **********************************************************************/
 
 // Constructor.
-UbloxCellularGeneric::UbloxCellularGeneric(bool debug_on,
-                                           PinName tx,
-                                           PinName rx,
-                                           int baud)
+UbloxCellularDriverGen::UbloxCellularDriverGen(PinName tx, PinName rx,
+                                               int baud, bool debug_on)
 {
     _smsIndex = NULL;
     _smsNum = 0;
 
     // Initialise the base class, which starts the AT parser
-    baseClassInit(debug_on, tx, rx, baud);
+    baseClassInit(tx, rx, baud, debug_on);
 
     // URCs, handled out of band
-    _at->oob("+CMGL", callback(this, &UbloxCellularGeneric::CMGL_URC));
-    _at->oob("+CMT", callback(this, &UbloxCellularGeneric::CMT_URC));
-    _at->oob("+CMTI", callback(this, &UbloxCellularGeneric::CMTI_URC));}
+    _at->oob("+CMGL", callback(this, &UbloxCellularDriverGen::CMGL_URC));
+    _at->oob("+CMT", callback(this, &UbloxCellularDriverGen::CMT_URC));
+    _at->oob("+CMTI", callback(this, &UbloxCellularDriverGen::CMTI_URC));}
 
 // Destructor.
-UbloxCellularGeneric::~UbloxCellularGeneric()
+UbloxCellularDriverGen::~UbloxCellularDriverGen()
 {
     // TODO
 }
@@ -103,7 +101,7 @@ UbloxCellularGeneric::~UbloxCellularGeneric()
  **********************************************************************/
 
 // Count the number of messages on the module.
-int UbloxCellularGeneric::smsList(const char* stat /*= "ALL"*/, int* index /*=NULL*/, int num /*= 0*/)
+int UbloxCellularDriverGen::smsList(const char* stat, int* index, int num)
 {
     int numMessages = -1;
     LOCK();
@@ -124,7 +122,7 @@ int UbloxCellularGeneric::smsList(const char* stat /*= "ALL"*/, int* index /*=NU
 }
 
 // Send an SMS message.
-bool UbloxCellularGeneric::smsSend(const char* num, const char* buf)
+bool UbloxCellularDriverGen::smsSend(const char* num, const char* buf)
 {
     bool success = false;
     LOCK();
@@ -141,7 +139,7 @@ bool UbloxCellularGeneric::smsSend(const char* num, const char* buf)
     return success;
 }
 
-bool UbloxCellularGeneric::smsDelete(int index)
+bool UbloxCellularDriverGen::smsDelete(int index)
 {
     bool success;
     LOCK();
@@ -152,7 +150,7 @@ bool UbloxCellularGeneric::smsDelete(int index)
     return success;
 }
 
-bool UbloxCellularGeneric::smsRead(int index, char* num, char* buf, int len)
+bool UbloxCellularDriverGen::smsRead(int index, char* num, char* buf, int len)
 {
     bool success = false;
     char * tmpBuf;
@@ -189,7 +187,7 @@ bool UbloxCellularGeneric::smsRead(int index, char* num, char* buf, int len)
  **********************************************************************/
 
 // Perform a USSD command.
-bool UbloxCellularGeneric::ussdCommand(const char* cmd, char* buf)
+bool UbloxCellularDriverGen::ussdCommand(const char* cmd, char* buf)
 {
     bool success;
     LOCK();
@@ -208,7 +206,7 @@ bool UbloxCellularGeneric::ussdCommand(const char* cmd, char* buf)
  **********************************************************************/
 
 // Delete a file from the module's file system.
-bool UbloxCellularGeneric::delFile(const char* filename)
+bool UbloxCellularDriverGen::delFile(const char* filename)
 {
     bool success;
     LOCK();
@@ -220,7 +218,7 @@ bool UbloxCellularGeneric::delFile(const char* filename)
 }
 
 // Write a buffer of data to a file in the module's file system.
-int UbloxCellularGeneric::writeFile(const char* filename, const char* buf, int len)
+int UbloxCellularDriverGen::writeFile(const char* filename, const char* buf, int len)
 {
     int bytesWritten = -1;
     LOCK();
@@ -236,7 +234,7 @@ int UbloxCellularGeneric::writeFile(const char* filename, const char* buf, int l
 }
 
 // Read a buffer of data from a file in the module's file system.
-int UbloxCellularGeneric::readFile(const char* filename, char* buf, int len)
+int UbloxCellularDriverGen::readFile(const char* filename, char* buf, int len)
 {
     int bytesRead = -1;
     char respFilename[48];
@@ -269,7 +267,7 @@ int UbloxCellularGeneric::readFile(const char* filename, char* buf, int len)
 }
 
 //The following function is useful for reading files with a dimension greater than 128 bytes
-int UbloxCellularGeneric::readFileNew(const char* filename, char* buf, int len)
+int UbloxCellularDriverGen::readFileNew(const char* filename, char* buf, int len)
 {
     int countBytes = -1;  // Counter for file reading (default value)
     int bytesToRead = fileSize(filename);  // Retrieve the size of the file
@@ -329,7 +327,7 @@ int UbloxCellularGeneric::readFileNew(const char* filename, char* buf, int len)
 }
 
 // Return the size of a file.
-int UbloxCellularGeneric::fileSize(const char* filename)
+int UbloxCellularDriverGen::fileSize(const char* filename)
 {
     int returnValue = -1;
     int fileSize;
