@@ -31,21 +31,24 @@
 // Callback for HTTP result code handling.
 void UbloxCellularInterfaceGenericAtDataExt::UUHTTPCR_URC()
 {
+    char buf[32];
     int a, b, c;
 
     // +UHTTPCR: <profile_id>,<op_code>,<param_val>
-    if (_at->recv(": %d,%d,%d", &a, &b, &c)) {
-        _httpProfiles[a].cmd = b;          // Command
-        _httpProfiles[a].result = c;       // Result
+    if (read_at_to_newline(buf, sizeof (buf)) > 0) {
+        if (sscanf(buf, ": %d,%d,%d", &a, &b, &c) == 3) {
+            _httpProfiles[a].cmd = b;          // Command
+            _httpProfiles[a].result = c;       // Result
+            tr_debug("%s for profile %d: result code is %d", getHttpCmd(b), a, c);
+        }
     }
-
-    tr_debug("%s for profile %d: result code is %d", getHTTPcmd(b), a, c);
 }
 
 // Find a given profile.  NOTE: LOCK() before calling.
 int UbloxCellularInterfaceGenericAtDataExt::findProfile(int modemHandle)
 {
-    for (unsigned int profile = 0; profile < (sizeof(_httpProfiles)/sizeof(_httpProfiles[0])); profile++) {
+    for (unsigned int profile = 0; profile < (sizeof(_httpProfiles)/sizeof(_httpProfiles[0]));
+         profile++) {
         if (_httpProfiles[profile].modemHandle == modemHandle) {
             return profile;
         }
@@ -63,8 +66,11 @@ int UbloxCellularInterfaceGenericAtDataExt::findProfile(int modemHandle)
  **********************************************************************/
 
 // Constructor.
-UbloxCellularInterfaceGenericAtDataExt::UbloxCellularInterfaceGenericAtDataExt(bool debug_on, PinName tx, PinName rx, int baud):
-                                        UbloxCellularGeneric(debug_on, tx, rx, baud)
+UbloxCellularInterfaceGenericAtDataExt::UbloxCellularInterfaceGenericAtDataExt(bool debugOn,
+                                                                               PinName tx,
+                                                                               PinName rx,
+                                                                               int baud):
+                                        UbloxCellularInterfaceGenericAtData(debugOn, tx, rx, baud)
 {
     // Zero Cell Locate stuff
     _locRcvPos = 0;
@@ -72,7 +78,8 @@ UbloxCellularInterfaceGenericAtDataExt::UbloxCellularInterfaceGenericAtDataExt(b
 
     // Zero HTTP profiles
     memset(_httpProfiles, 0, sizeof(_httpProfiles));
-    for (unsigned int profile = 0; profile < sizeof(_httpProfiles) / sizeof(_httpProfiles[0]); profile++) {
+    for (unsigned int profile = 0; profile < sizeof(_httpProfiles) / sizeof(_httpProfiles[0]);
+         profile++) {
         _httpProfiles[profile].modemHandle = HTTP_PROF_UNUSED;
     }
 
@@ -176,7 +183,9 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpResetProfile(int httpProfile)
 }
 
 // Set HTTP parameters.
-bool UbloxCellularInterfaceGenericAtDataExt::httpSetPar(int httpProfile, HttpOpCode httpOpCode, const char * httpInPar)
+bool UbloxCellularInterfaceGenericAtDataExt::httpSetPar(int httpProfile,
+                                                        HttpOpCode httpOpCode,
+                                                        const char * httpInPar)
 {
     bool success = false;
     int httpInParNum = 0;
@@ -187,24 +196,29 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpSetPar(int httpProfile, HttpOpC
     switch(httpOpCode) {
         case HTTP_IP_ADDRESS:   // 0
             if (gethostbyname(httpInPar, &address) == NSAPI_ERROR_OK) {
-                success = _at->send("AT+UHTTP=%d,%d,\"%s\"", httpProfile, httpOpCode, address.get_ip_address()) && _at->recv("OK");
+                success = _at->send("AT+UHTTP=%d,%d,\"%s\"",
+                                    httpProfile, httpOpCode, address.get_ip_address()) &&
+                          _at->recv("OK");
             }
             break;
         case HTTP_SERVER_NAME:  // 1
         case HTTP_USER_NAME:    // 2
         case HTTP_PASSWORD:     // 3
-            success = _at->send("AT+UHTTP=%d,%d,\"%s\"", httpProfile, httpOpCode, httpInPar) && _at->recv("OK");
+            success = _at->send("AT+UHTTP=%d,%d,\"%s\"", httpProfile, httpOpCode, httpInPar) &&
+                      _at->recv("OK");
             break;
 
         case HTTP_AUTH_TYPE:    // 4
         case HTTP_SERVER_PORT:  // 5
             httpInParNum = atoi(httpInPar);
-            success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) && _at->recv("OK");
+            success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) &&
+                      _at->recv("OK");
             break;
 
         case HTTP_SECURE:       // 6
             httpInParNum = atoi(httpInPar);
-            success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) && _at->recv("OK");
+            success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) &&
+                      _at->recv("OK");
             break;
 
         default:
@@ -217,40 +231,53 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpSetPar(int httpProfile, HttpOpC
 }
 
 // Perform an HTTP command.
-bool UbloxCellularInterfaceGenericAtDataExt::httpCommand(int httpProfile, HttpCmd httpCmdCode, const char *httpPath, const char *httpOut,
-                                             const char *httpIn, int httpContentType, const char *httpCustomPar, char *buf, int len)
+bool UbloxCellularInterfaceGenericAtDataExt::httpCommand(int httpProfile,
+                                                         HttpCmd httpCmdCode,
+                                                         const char *httpPath,
+                                                         const char *httpOut,
+                                                         const char *httpIn,
+                                                         int httpContentType,
+                                                         const char *httpCustomPar,
+                                                         char *buf, int len)
 {
     bool success = false;
     LOCK();
 
-    tr_debug("%s", getHTTPcmd(httpCmdCode));
+    tr_debug("%s", getHttpCmd(httpCmdCode));
     switch (httpCmdCode) {
         case HTTP_HEAD:
-            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_HEAD, httpPath, httpOut) &&
+            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_HEAD,
+                                httpPath, httpOut) &&
                       _at->recv("OK");
             break;
         case HTTP_GET:
-            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_GET, httpPath, httpOut) &&
+            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_GET,
+                                httpPath, httpOut) &&
                       _at->recv("OK");
             break;
         case HTTP_DELETE:
-            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_DELETE, httpPath, httpOut) &&
+            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_DELETE,
+                                httpPath, httpOut) &&
                       _at->recv("OK");
             break;
         case HTTP_PUT:
             // In this case the parameter httpIn is a filename
-            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\"", httpProfile, HTTP_PUT, httpPath, httpOut, httpIn) &&
-                 _at->recv("OK");
+            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\"", httpProfile, HTTP_PUT,
+                                httpPath, httpOut, httpIn) &&
+                      _at->recv("OK");
             break;
         case HTTP_POST_FILE:
             // In this case the parameter httpIn is a filename
             if (httpContentType != 6) {
                 success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
-                               httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn, httpContentType) &&
+                               httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn,
+                               httpContentType) &&
                           _at->recv("OK");
             } else {
                 success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
-                               httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn, httpContentType, httpCustomPar) &&
+                               httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn,
+                               httpContentType,
+                               httpCustomPar) &&
                           _at->recv("OK");
             }
             break;
@@ -258,16 +285,20 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpCommand(int httpProfile, HttpCm
             // In this case the parameter httpIn is a string containing data
             if (httpContentType != 6) {
                 success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
-                               httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn, httpContentType) &&
+                               httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn,
+                               httpContentType) &&
                           _at->recv("OK");
             } else {
                 success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
-                               httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn, httpContentType, httpCustomPar) &&
+                               httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn,
+                               httpContentType,
+                               httpCustomPar) &&
                           _at->recv("OK");
             }
             break;
         default:
             tr_debug("HTTP command not recognised");
+            break;
     }
 
     if (success) {
@@ -302,7 +333,7 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpCommand(int httpProfile, HttpCm
             }
 
             if (!success) {
-                tr_debug("%s: ERROR", getHTTPcmd(httpCmdCode));
+                tr_debug("%s: ERROR", getHttpCmd(httpCmdCode));
                 // No more while loops
                 _httpProfiles[httpProfile].pending = false;
             }
@@ -314,28 +345,40 @@ bool UbloxCellularInterfaceGenericAtDataExt::httpCommand(int httpProfile, HttpCm
 }
 
 // Return a string representing an AT command.
-const char * UbloxCellularInterfaceGenericAtDataExt::getHTTPcmd(int httpCmdCode)
+const char * UbloxCellularInterfaceGenericAtDataExt::getHttpCmd(int httpCmdCode)
 {
+    const char * str = "HTTP command not recognised";
+
     switch (httpCmdCode) {
         case HTTP_HEAD:
-            return "HTTP HEAD command";
+            str = "HTTP HEAD command";
+            break;
         case HTTP_GET:
-            return "HTTP GET command";
+            str = "HTTP GET command";
+            break;
         case HTTP_DELETE:
-            return "HTTP DELETE command";
+            str = "HTTP DELETE command";
+            break;
         case HTTP_PUT:
-            return "HTTP PUT command";
+            str = "HTTP PUT command";
+            break;
         case HTTP_POST_FILE:
-            return "HTTP POST file command";
+            str = "HTTP POST file command";
+            break;
         case HTTP_POST_DATA:
-            return "HTTP POST data command";
+            str = "HTTP POST data command";
+            break;
         default:
-            return "HTTP command not recognised";
+            break;
     }
+
+    return str;
 }
 
 /**********************************************************************
  * PUBLIC METHODS: Cell Locate
  **********************************************************************/
+
+// TODO
 
 // End of file

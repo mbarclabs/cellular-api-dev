@@ -14,14 +14,32 @@ using namespace utest::v1;
 // COMPILE-TIME MACROS
 // ----------------------------------------------------------------
 
-#ifndef TEST_APN
-# define TEST_APN         "jtm2m"
+// These macros can be overridden with an mbed_app.json file and
+// contents of the following form:
+//
+//{
+//    "config": {
+//        "apn": {
+//            "value": "\"my_apn\""
+//        }
+//}
+
+// The credentials of the SIM in the board.
+#ifndef MBED_CONF_APP_DEFAULT_PIN
+// Note: this is the PIN for the SIM with ICCID
+// 8944501104169548380.
+# define MBED_CONF_APP_DEFAULT_PIN "5134"
 #endif
-#ifndef TEST_USERNAME
-# define TEST_USERNAME    NULL
+
+// Network credentials.
+#ifndef MBED_CONF_APP_APN
+# define MBED_CONF_APP_APN         "jtm2m"
 #endif
-#ifndef TEST_PASSWORD
-# define TEST_PASSWORD    NULL
+#ifndef MBED_CONF_APP_USERNAME
+# define MBED_CONF_APP_USERNAME    NULL
+#endif
+#ifndef MBED_CONF_APP_PASSWORD
+# define MBED_CONF_APP_PASSWORD    NULL
 #endif
 
 // ----------------------------------------------------------------
@@ -57,7 +75,8 @@ static void unlock()
 void test_a_thing() {
 
     pInterface->deinit();
-    TEST_ASSERT(pInterface->connect(NULL, TEST_APN, TEST_USERNAME, TEST_PASSWORD) == 0);
+    TEST_ASSERT(pInterface->connect(MBED_CONF_APP_DEFAULT_PIN, MBED_CONF_APP_APN,
+                                    MBED_CONF_APP_USERNAME, MBED_CONF_APP_PASSWORD) == 0);
     TEST_ASSERT(pInterface->disconnect() == 0);
 }
 

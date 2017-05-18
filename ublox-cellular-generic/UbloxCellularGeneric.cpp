@@ -79,11 +79,13 @@ void UbloxCellularGeneric::CMT_URC()
 UbloxCellularGeneric::UbloxCellularGeneric(bool debug_on,
                                            PinName tx,
                                            PinName rx,
-                                           int baud):
-                      UbloxCellularGenericBase(debug_on, tx, rx, baud)
+                                           int baud)
 {
     _smsIndex = NULL;
     _smsNum = 0;
+
+    // Initialise the base class, which starts the AT parser
+    baseClassInit(debug_on, tx, rx, baud);
 
     // URCs, handled out of band
     _at->oob("+CMGL", callback(this, &UbloxCellularGeneric::CMGL_URC));
