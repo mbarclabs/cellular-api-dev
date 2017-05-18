@@ -34,6 +34,8 @@ void UbloxCellularDriverGenAtDataExt::UUHTTPCR_URC()
     char buf[32];
     int a, b, c;
 
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
     // +UHTTPCR: <profile_id>,<op_code>,<param_val>
     if (read_at_to_newline(buf, sizeof (buf)) > 0) {
         if (sscanf(buf, ": %d,%d,%d", &a, &b, &c) == 3) {
@@ -61,6 +63,95 @@ int UbloxCellularDriverGenAtDataExt::findProfile(int modemHandle)
  * PROTECTED METHODS: Cell Locate
  **********************************************************************/
 
+// Callback for UULOC URC handling.
+void UbloxCellularDriverGenAtDataExt::UULOC_URC()
+{
+    int a, b;
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+
+    // +UHTTPCR: <profile_id>,<op_code>,<param_val>
+    if (read_at_to_newline(urcBuf, sizeof (urcBuf)) > 0) {
+        // +UULOC: <date>,<time>,<lat>,<long>,<alt>,<uncertainty>,<speed>, <direction>,<vertical_acc>,<sensor_used>,<SV_used>,<antenna_status>, <jamming_status>
+        if (sscanf(urcBuf, ": %d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%d,%*d,%*d",
+                   &_loc[0].time.tm_mday, &_loc[0].time.tm_mon,
+                   &_loc[0].time.tm_year, &_loc[0].time.tm_hour,
+                   &_loc[0].time.tm_min, &_loc[0].time.tm_sec,
+                   &_loc[0].latitude, &_loc[0].longitude, &_loc[0].altitude,
+                   &_loc[0].uncertainty, &_loc[0].speed, &_loc[0].direction,
+                   &_loc[0].verticalAcc,
+                   &b, &_loc[0].svUsed) == 15) {
+            tr_debug ("Position found at index 0");
+            _loc[0].sensor = (b == 0) ? CELL_LAST : (b == 1) ? CELL_GNSS :
+                             (b == 2) ? CELL_LOCATE : (b == 3) ? CELL_HYBRID : CELL_LAST;
+            _loc[0].time.tm_mon -= 1;
+            _loc[0].time.tm_wday = 0;
+            _loc[0].time.tm_yday = 0;
+            _loc[0].validData = true;
+            _locExpPos=1;
+            _locRcvPos++;
+        // +UULOC: <sol>,<num>,<sensor_used>,<date>,<time>,<lat>,<long>,<alt>,<uncertainty>,<speed>, <direction>,<vertical_acc>,,<SV_used>,<antenna_status>, <jamming_status>
+        } else if (sscanf(urcBuf, ": %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%*d,%*d",
+                   &a, &_locExpPos, &b,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_mday,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_mon,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_year,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_hour,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_min,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_sec,
+                   &_loc[CELL_MAX_HYP - 1].latitude,
+                   &_loc[CELL_MAX_HYP - 1].longitude,
+                   &_loc[CELL_MAX_HYP - 1].altitude,
+                   &_loc[CELL_MAX_HYP - 1].uncertainty,
+                   &_loc[CELL_MAX_HYP - 1].speed,
+                   &_loc[CELL_MAX_HYP - 1].direction,
+                   &_loc[CELL_MAX_HYP - 1].verticalAcc,
+                   &_loc[CELL_MAX_HYP - 1].svUsed) == 17) {
+            if (--a >= 0) {
+                tr_debug ("Position found at index %d", a);
+
+                memcpy(&_loc[a], &_loc[CELL_MAX_HYP - 1], sizeof(*_loc));
+
+                _loc[a].sensor = (b == 0) ? CELL_LAST : (b == 1) ? CELL_GNSS :
+                                 (b == 2) ? CELL_LOCATE : (b == 3) ? CELL_HYBRID : CELL_LAST;
+                _loc[a].time.tm_mon -= 1;
+                _loc[a].time.tm_wday = 0;
+                _loc[a].time.tm_yday = 0;
+                _loc[a].validData = true;
+                _locRcvPos++;
+            }
+        //+UULOC: <sol>,<num>,<sensor_used>,<date>,<time>,<lat>,<long>,<alt>,<lat50>,<long50>,<major50>,<minor50>,<orientation50>,<confidence50>[,<lat95>,<long95>,<major95>,<minor95>,<orientation95>,<confidence95>]
+        } else if (sscanf(urcBuf, ": %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%*f,%*f,%d,%*d,%*d,%*d",
+                   &a, &_locExpPos, &b,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_mday,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_mon,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_year,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_hour,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_min,
+                   &_loc[CELL_MAX_HYP - 1].time.tm_sec,
+                   &_loc[CELL_MAX_HYP - 1].latitude,
+                   &_loc[CELL_MAX_HYP - 1].longitude,
+                   &_loc[CELL_MAX_HYP - 1].altitude,
+                   &_loc[CELL_MAX_HYP - 1].uncertainty) == 13) {
+            if (--a >= 0) {
+
+                tr_debug ("Position found at index %d", a);
+
+                memcpy(&_loc[a], &_loc[CELL_MAX_HYP - 1], sizeof(*_loc));
+
+                _loc[a].sensor = (b == 0) ? CELL_LAST : (b == 1) ? CELL_GNSS :
+                                 (b == 2) ? CELL_LOCATE : (b == 3) ? CELL_HYBRID : CELL_LAST;
+                _loc[a].time.tm_mon -= 1;
+                _loc[a].time.tm_wday = 0;
+                _loc[a].time.tm_yday = 0;
+                _loc[a].validData = true;
+                _locRcvPos++;
+            }
+        }
+    }
+}
+
 /**********************************************************************
  * PUBLIC METHODS: GENERIC
  **********************************************************************/
@@ -85,6 +176,9 @@ UbloxCellularDriverGenAtDataExt::UbloxCellularDriverGenAtDataExt(PinName tx,
 
     // URC handler for HTTP
     _at->oob("+UUHTTPCR", callback(this, &UbloxCellularDriverGenAtDataExt::UUHTTPCR_URC));
+
+    // URC handler for Cell Locate
+    _at->oob("+ULOC", callback(this, &UbloxCellularDriverGenAtDataExt::UULOC_URC));
 }
 
 // Destructor.
@@ -379,6 +473,146 @@ const char * UbloxCellularDriverGenAtDataExt::getHttpCmd(int httpCmdCode)
  * PUBLIC METHODS: Cell Locate
  **********************************************************************/
 
-// TODO
+// Configure CellLocate TCP Aiding server.
+bool UbloxCellularDriverGenAtDataExt::cellLocSrvTcp(const char* token,
+                                                    const char* server_1,
+                                                    const char* server_2,
+                                                    int days, int period,
+                                                    int resolution)
+{
+    bool success = false;
+    LOCK();
+
+    if ((_dev_info.dev == DEV_LISA_U2_03S) || (_dev_info.dev  == DEV_SARA_U2)){
+        success = _at->send("AT+UGSRV=\"%s\",\"%s\",\"%s\",%d,%d,%d",
+                            server_1, server_2, token, days, period, resolution) &&
+                  _at->recv("OK");
+    }
+
+    UNLOCK();
+    return success;
+}
+
+// Configure CellLocate UDP Aiding server.
+bool UbloxCellularDriverGenAtDataExt::cellLocSrvUdp(const char* server_1,
+                                                    int port, int latency,
+                                                    int mode)
+{
+
+    bool success = false;
+    LOCK();
+
+    if (_dev_info.dev != DEV_TOBY_L2) {
+        success = _at->send("AT+UGAOP=\"%s\",%d,%d,%d", server_1, port, latency, mode) &&
+                  _at->recv("OK");
+    }
+
+    UNLOCK();
+    return success;
+}
+
+// Configure CellLocate URCs in the case of +ULOC operations.
+bool UbloxCellularDriverGenAtDataExt::cellLocUnsol(int mode)
+{
+    bool success = false;
+    LOCK();
+
+    if (_dev_info.dev == DEV_LISA_U2_03S) {
+        success = _at->send("AT+ULOCIND=%d", mode) &&
+                  _at->recv("OK");
+    }
+
+    UNLOCK();
+    return success;
+}
+
+// Configure Cell Locate location sensor.
+bool UbloxCellularDriverGenAtDataExt::cellLocConfig(int scanMode)
+{
+    bool success = false;
+    LOCK();
+
+    if (_dev_info.dev != DEV_TOBY_L2) {
+        success = _at->send("AT+ULOCCELL=%d", scanMode) &&
+                  _at->recv("OK");
+    }
+
+    UNLOCK();
+    return success;
+}
+
+// Request CellLocate.
+bool UbloxCellularDriverGenAtDataExt::cellLocRequest(CellSensType sensor,
+                                                     int timeout,
+                                                     int accuracy,
+                                                     CellRespType type,
+                                                     int hypothesis)
+{
+    bool success = false;
+
+    if ((hypothesis <= CELL_MAX_HYP) &&
+        !((hypothesis > 1) && (type != CELL_MULTIHYP))) {
+
+        LOCK();
+
+        _locRcvPos = 0;
+        _locExpPos = 0;
+
+        for (int i = 0; i < hypothesis; i++) {
+            _loc[i].validData = false;
+        }
+
+        if (_dev_info.dev == DEV_LISA_U2_03S) {
+            success = _at->send("AT+ULOC=2,%d,%d,%d,%d,%d", sensor, type, timeout, accuracy, hypothesis) &&
+                      _at->recv("OK");
+            // Answers are picked up by the URC
+        } else if (_dev_info.dev != DEV_TOBY_L2) {
+            success = _at->send("AT+ULOC=2,%d,1,%d,%d",  sensor, timeout, accuracy) &&
+                      _at->recv("OK");
+            // Answers are picked up by the URC
+        }
+
+        UNLOCK();
+    }
+
+    return success;
+}
+
+// Get a position record.
+bool UbloxCellularDriverGenAtDataExt::cellLocGetData(CellLocData *data, int index)
+{
+    bool success = false;
+
+    if (_loc[index].validData) {
+        LOCK();
+        memcpy(data, &_loc[index], sizeof(*_loc));
+        success = true;
+        UNLOCK();
+    }
+
+    return success;
+}
+
+// Get number of position records received.
+int UbloxCellularDriverGenAtDataExt::cellLocGetRes()
+{
+    return _locRcvPos;
+}
+
+// Get number of positions records expected to be received.
+int UbloxCellularDriverGenAtDataExt::cellLocGetExpRes()
+{
+    int numRecords = 0;
+
+    _at->recv("OK");
+
+    LOCK();
+    if (_locRcvPos > 0) {
+        numRecords = _locExpPos;
+    }
+    UNLOCK();
+
+    return numRecords;
+}
 
 // End of file

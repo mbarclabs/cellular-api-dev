@@ -165,17 +165,14 @@ public:
         CELL_MULTIHYP = 2
     } CellRespType;
 
-    int _locRcvPos;     //!< Received positions.
-    int _locExpPos;     //!< Expected positions.
-
-    /** Cell Locate Data.
+    /** Cell Locate data.
      */
     typedef struct {
         bool validData;      //!< Flag for indicating if data is valid.
         struct tm time;      //!< GPS Timestamp.
         float longitude;     //!< Estimated longitude, in degrees.
         float latitude;      //!< Estimated latitude, in degrees.
-        int altitutude;      //!< Estimated altitude, in meters^2.
+        int altitude;        //!< Estimated altitude, in meters^2.
         int uncertainty;     //!< Maximum possible error, in meters.
         int speed;           //!< Speed over ground m/s^2.
         int direction;       //!< Course over ground in degrees.
@@ -184,74 +181,87 @@ public:
         int svUsed;          //!< number of satellite used.
     } CellLocData;
 
-    /** Configures CellLocate TCP Aiding server.
+    /** Configure the Cell Locate TCP aiding server.
      *
-     * @param server_1   Host name of the primary MGA server.
-     * @param server_2   Host name of the secondary MGA server.
-     * @param token      Authentication Token for MGA server access.
-     * @param days       The number of days into the future the off-line
+     * Connect() must have been called previously to establish
+     * a data connection.
+     *
+     * @param server_1   host name of the primary MGA server.
+     * @param server_2   host name of the secondary MGA server.
+     * @param token      authentication token for MGA server access.
+     * @param days       the number of days into the future the off-line
      *                   data for the u-blox 7.
-     * @param period     The number of weeks into the future the off-line
+     * @param period     the number of weeks into the future the off-line
      *                   data for u-blox M8.
-     * @param resolution Resolution of off-line data for u-blox M8: 1 every
+     * @param resolution resolution of off-line data for u-blox M8: 1 every
      *                   day, 0 every other day.
+     * @return           true if the request is successful, otherwise false.
      */
-    int cellLocSrvTcp(const char* token, const char* server_1 = "cell-live1.services.u-blox.com",
-                      const char* server_2 = "cell-live2.services.u-blox.com",
-                      int days = 14, int period = 4, int resolution = 1);
+    bool cellLocSrvTcp(const char* token, const char* server_1 = "cell-live1.services.u-blox.com",
+                       const char* server_2 = "cell-live2.services.u-blox.com",
+                       int days = 14, int period = 4, int resolution = 1);
  
-    /** Configures  CellLocate UDP Aiding server.
-     * @param server_1   Host name of the primary MGA server.
-     * @param port       Server port.
-     * @param latency    Expected network latency in seconds from 0 to 10000 ms.
-     * @param mode       Assist now management, mode of operation: 0 data
-     *                   downloaded at GNSS power up,
+    /** Configure Cell Locate UDP aiding server.
+     *
+     * Connect() must have been called previously to establish
+     * a data connection.
+     *
+     * @param server_1   host name of the primary MGA server.
+     * @param port       server port.
+     * @param latency    expected network latency in seconds from 0 to 10000 milliseconds.
+     * @param mode       Assist Now management, mode of operation:
+     *                   0 data downloaded at GNSS power up,
      *                   1 automatically kept alive, manual download.
+     * @return           true if the request is successful, otherwise false.
      */
-    int cellLocSrvUdp(const char* server_1 = "cell-live1.services.u-blox.com",
-                      int port = 46434, int latency = 1000, int mode = 0);
+    bool cellLocSrvUdp(const char* server_1 = "cell-live1.services.u-blox.com",
+                       int port = 46434, int latency = 1000, int mode = 0);
  
-    /** Configures CellLocate URCs in the case of +ULOC operations.
+    /** Configure Cell Locate URCs in the case of +ULOC operations.
      *
-     * @param mode Urc configuration: 0 disabled, 1 enabled.
+     * @param mode URC configuration: 0 disabled, 1 enabled.
+     * @return     true if the request is successful, otherwise false.
      */
-    int cellLocUnsol(int mode);
+    bool cellLocUnsol(int mode);
  
-    /** Configures CellLocate location sensor.
+    /** Configure Cell Locate location sensor.
      *
-     * @param scanMode Network scan mode: 0 normal, 1 deep scan.
+     * @param scanMode network scan mode: 0 normal, 1 deep scan.
+     * @return         true if the request is successful, otherwise false.
      */
-    int cellLocConfig(int scanMode);
+    bool cellLocConfig(int scanMode);
  
-    /** Request CellLocate.
-     * This function is non-blocking, the result has to be retrieved using cellLocGetxxx.
+    /** Request Cell Locate.
+     *
+     * This function is non-blocking, the result is retrieved using cellLocGetxxx.
      *   
-     * @param sensor     Sensor selection.
-     * @param timeout    Timeout period in seconds (1 - 999).
-     * @param accuracy   Target accuracy in meters (1 - 999999).
-     * @param type
-     * @param hypotesis  Maximum desired number of responses from CellLocate (up to 16).
+     * @param sensor     sensor selection.
+     * @param timeout    timeout period in seconds (1 - 999).
+     * @param accuracy   target accuracy in meters (1 - 999999).
+     * @param type       detailed or multi-hypothesis.
+     * @param hypothesis maximum desired number of responses from CellLocate (up to 16).
+     * @return           true if the request is successful, otherwise false.
      */
-    int cellLocRequest(CellSensType sensor, int timeout, int accuracy,
-                       CellRespType type = CELL_DETAILED,int hypotesis = 1);
+    bool cellLocRequest(CellSensType sensor, int timeout, int accuracy,
+                        CellRespType type = CELL_DETAILED, int hypothesis = 1);
  
     /** Get a position record.
      *
-     * @param data  pointer to a CellLocData struct where the location will be copied in.
+     * @param data  pointer to a CellLocData structure where the location will be put.
      * @param index of the position to retrieve.
-     * @return      1 if data has been retrieved and copied, 0 otherwise.
+     * @return      true if data has been retrieved and copied, false otherwise.
      */
-    int cellLocGetData(CellLocData *data, int index = 0);
+    bool cellLocGetData(CellLocData *data, int index = 0);
     
-    /** Get number of position records received.
+    /** Get the number of position records received.
      *
-     * @return number of position received.
+     * @return number of position records received.
      */
     int cellLocGetRes();
     
-    /** Get expected number of position to be received.
+    /** Get the number of position records expected to be received.
      *
-     * @return number of expected position to be received.
+     * @return number of position records expected to be received.
      */
     int cellLocGetExpRes();
     
@@ -303,6 +313,30 @@ protected:
      * @return            the profile handle or negative if not found/created.
      */
     int findProfile(int modemHandle = HTTP_PROF_UNUSED);
+
+    /**********************************************************************
+     * PROTECTED: Cell Locate
+     **********************************************************************/
+
+    /** Received positions.
+     */
+    int _locRcvPos;
+
+    /** Expected positions.
+     */
+    int _locExpPos;
+
+    /**  The Cell Locate data.
+     */
+    CellLocData _loc[CELL_MAX_HYP];
+
+    /** Buffer for the URC to work with
+     */
+    char urcBuf[128];
+
+    /** Callback to capture +UULOC.
+     */
+    void UULOC_URC();
 };
 
 #endif // _UBLOX_CELLULAR_DRIVER_GEN_AT_DATA_EXT_

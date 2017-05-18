@@ -31,14 +31,18 @@
 // URC for Short Message listing.
 void UbloxCellularDriverGen::CMGL_URC()
 {
+    char buf[32];
     int index;
 
-    if ((_smsIndex != NULL) && (_smsNum > 0)) {
-        // +CMGL: <ix>,...
-        if (_at->recv(": %d,", &index))
-        {
-            *_smsIndex++ = index;
-            _smsNum--;
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +CMGL: <ix>,...
+    if (read_at_to_newline(buf, sizeof (buf)) > 0) {
+        if ((_smsIndex != NULL) && (_smsNum > 0)) {
+            if (sscanf(buf, ": %d,", &index) == 1) {
+                *_smsIndex++ = index;
+                _smsNum--;
+            }
         }
     }
 }
@@ -46,29 +50,40 @@ void UbloxCellularDriverGen::CMGL_URC()
 // URC for new class 0 SMS messages.
 void UbloxCellularDriverGen::CMTI_URC()
 {
-    // our CMGF = 1, i.e., text mode. So we expect response in this format:
-    //+CMTI: <mem>,<index>,
-    //AT Command Manual UBX-13002752, section 11.8.2
-    _at->recv(": %*u,%*u");
-    tr_info("New SMS received");
+    char buf[32];
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    if (read_at_to_newline(buf, sizeof (buf)) > 0) {
+        // No need to parse, any content is good
+        tr_info("New SMS received");
+    }
 }
 
 // URC for non-class 0 SMS messages.
 void UbloxCellularDriverGen::CMT_URC()
 {
-    // our CMGF = 1, i.e., text mode. So we expect response in this format:
-    //+CMT: <oa>,[<alpha>],<scts>[,<tooa>,
-    //<fo>,<pid>,<dcs>,<sca>,<tosca>,
-    //<length>]<CR><LF><data>
+    char buf[128];
+    char text[50];
+    char serviceTimestamp[15];
+
+    // Our CMGF = 1, i.e., text mode. So we expect response in this format:
+    //
+    // +CMT: <oa>,[<alpha>],<scts>[,<tooa>,
+    // <fo>,<pid>,<dcs>,<sca>,<tosca>,
+    // <length>]<CR><LF><data>
+    //
     // By default detailed SMS header CSDH=0 , so we are not expecting  [,<tooa>,
-    //<fo>,<pid>,<dcs>,<sca>,<tosca>
-    //AT Command Manual UBX-13002752, section 11.8.2
-    char sms[50];
-    char service_timestamp[15];
+    // <fo>,<pid>,<dcs>,<sca>,<tosca>
+    // AT Command Manual UBX-13002752, section 11.8.2
 
-    _at->recv(": %49[^\"]\",,%14[^\"]\"\n", sms, service_timestamp);
-
-    tr_info("SMS:%s, %s", service_timestamp, sms);
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    if (read_at_to_newline(buf, sizeof (buf)) > 0) {
+        if (sscanf(buf, ": %49[^\"]\",,%14[^\"]\"", text, serviceTimestamp) == 2) {
+            tr_info("SMS: %s, %s", serviceTimestamp, text);
+        }
+    }
 }
 
 /**********************************************************************
