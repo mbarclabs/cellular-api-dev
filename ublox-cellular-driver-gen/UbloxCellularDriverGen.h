@@ -71,8 +71,8 @@ public:
     
     /** Send a message to a recipient.
      *
-     * Note: init() should be called before using this command and,
-     * in many cases, nwk_registration() is also required.
+     * Note: init() and nwk_registration() should be called before
+     * using this command.
      *
      * @param num the phone number of the recipient.
      * @param buf the content of the message to sent.
@@ -91,11 +91,12 @@ public:
     /** Make a USSD query.
      *
      * Note: init() should be called before using this command and,
-     * in many cases, nwk_registration() is also required.
+     * in many cases, nwk_registration() is also required as the USSD
+     * command may need network access.
      *
      * Note: some USSD commands relate to call waiting, call forwarding,
-     * etc, which can result in multiple responses.  This function returns
-     * only the last response.  Instantiate this class with debugOn set to
+     * etc., which can result in multiple responses.  This function returns
+     * only the first response.  Instantiate this class with debugOn set to
      * true to get a better view of what is really going on.  If such
      * responses are important to you, you should subclass this class and
      * parse for them specifically and, probably, use specific AT commands
@@ -195,13 +196,9 @@ protected:
      * PROTECTED: Unstructured Supplementary Service Data
      **********************************************************************/
 
-    /** Flag to indicate that a SS URC has landed.
-     */
-    volatile bool _ssUrc;
-
     /** A buffer for the string assembled from the URC.
      */
-    char _ssUrcBuf[USSD_STRING_LENGTH + 1];
+    char * _ssUrcBuf;
 
     /** URC for call waiting.
      */

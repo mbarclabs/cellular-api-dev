@@ -104,39 +104,43 @@ void UbloxCellularDriverGen::CCWA_URC()
     numChars = read_at_to_char(buf, sizeof (buf), '\n');
     if (numChars > 0) {
         if (sscanf(buf, ": %d, %d", &a, &b) > 0) {
-            _ssUrc = true;
-            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
-            memcpy (_ssUrcBuf, "+CCWA", 5);
-            memcpy (_ssUrcBuf + 5, buf, numChars);
-            if (a > 0) {
-                tr_debug("Calling Waiting is active");
-            } else {
-                tr_debug("Calling Waiting is not active");
-            }
-            if (b > 0) {
-                if (b & 0x01) {
-                    tr_debug(" for voice");
-                }
-                if (b & 0x02) {
-                    tr_debug(" for data");
-                }
-                if (b & 0x04) {
-                    tr_debug(" for fax");
-                }
-                if (b & 0x08) {
-                    tr_debug(" for SMS");
-                }
-                if (b & 0x10) {
-                    tr_debug(" for data circuit sync");
-                }
-                if (b & 0x20) {
-                    tr_debug(" for data circuit async");
-                }
-                if (b & 0x40) {
-                    tr_debug(" for dedicated packet access");
-                }
-                if (b & 0x80) {
-                    tr_debug(" for dedicated PAD access");
+            if (_ssUrcBuf == NULL) {
+                _ssUrcBuf = (char *) malloc(numChars + 5 + 1);
+                if (_ssUrcBuf != NULL) {
+                    memcpy (_ssUrcBuf, "+CCWA", 5);
+                    memcpy (_ssUrcBuf + 5, buf, numChars);
+                    *(_ssUrcBuf + numChars + 5) = 0;
+                    if (a > 0) {
+                        tr_debug("Calling Waiting is active");
+                    } else {
+                        tr_debug("Calling Waiting is not active");
+                    }
+                    if (b > 0) {
+                        if (b & 0x01) {
+                            tr_debug(" for voice");
+                        }
+                        if (b & 0x02) {
+                            tr_debug(" for data");
+                        }
+                        if (b & 0x04) {
+                            tr_debug(" for fax");
+                        }
+                        if (b & 0x08) {
+                            tr_debug(" for SMS");
+                        }
+                        if (b & 0x10) {
+                            tr_debug(" for data circuit sync");
+                        }
+                        if (b & 0x20) {
+                            tr_debug(" for data circuit async");
+                        }
+                        if (b & 0x40) {
+                            tr_debug(" for dedicated packet access");
+                        }
+                        if (b & 0x80) {
+                            tr_debug(" for dedicated PAD access");
+                        }
+                    }
                 }
             }
         }
@@ -160,45 +164,49 @@ void UbloxCellularDriverGen::CCFC_URC()
         memset (num, 0, sizeof (num));
         numValues = sscanf(buf, ": %d,%d,\"%32[^\"][\"]", &a, &b, num);
         if (numValues > 0) {
-            _ssUrc = true;
-            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
-            memcpy (_ssUrcBuf, "+CCFC", 5);
-            memcpy (_ssUrcBuf + 5, buf, numChars);
-            if (a > 0) {
-                tr_debug("Calling Forwarding is active");
-            } else {
-                tr_debug("Calling Forwarding is not active");
-            }
-            if (numValues > 1) {
-                if (b > 0) {
-                    if (b & 0x01) {
-                        tr_debug(" for voice");
+            if (_ssUrcBuf == NULL) {
+                _ssUrcBuf = (char *) malloc(numChars + 5 + 1);
+                if (_ssUrcBuf != NULL) {
+                    memcpy (_ssUrcBuf, "+CCFC", 5);
+                    memcpy (_ssUrcBuf + 5, buf, numChars);
+                    *(_ssUrcBuf + numChars + 5) = 0;
+                    if (a > 0) {
+                        tr_debug("Calling Forwarding is active");
+                    } else {
+                        tr_debug("Calling Forwarding is not active");
                     }
-                    if (b & 0x02) {
-                        tr_debug(" for data");
+                    if (numValues > 1) {
+                        if (b > 0) {
+                            if (b & 0x01) {
+                                tr_debug(" for voice");
+                            }
+                            if (b & 0x02) {
+                                tr_debug(" for data");
+                            }
+                            if (b & 0x04) {
+                                tr_debug(" for fax");
+                            }
+                            if (b & 0x08) {
+                                tr_debug(" for SMS");
+                            }
+                            if (b & 0x10) {
+                                tr_debug(" for data circuit sync");
+                            }
+                            if (b & 0x20) {
+                                tr_debug(" for data circuit async");
+                            }
+                            if (b & 0x40) {
+                                tr_debug(" for dedicated packet access");
+                            }
+                            if (b & 0x80) {
+                                tr_debug(" for dedicated PAD access");
+                            }
+                        }
                     }
-                    if (b & 0x04) {
-                        tr_debug(" for fax");
-                    }
-                    if (b & 0x08) {
-                        tr_debug(" for SMS");
-                    }
-                    if (b & 0x10) {
-                        tr_debug(" for data circuit sync");
-                    }
-                    if (b & 0x20) {
-                        tr_debug(" for data circuit async");
-                    }
-                    if (b & 0x40) {
-                        tr_debug(" for dedicated packet access");
-                    }
-                    if (b & 0x80) {
-                        tr_debug(" for dedicated PAD access");
+                    if (numValues > 2) {
+                        tr_debug(" for %s", num);
                     }
                 }
-            }
-            if (numValues > 2) {
-                tr_debug(" for %s", num);
             }
         }
     }
@@ -220,38 +228,42 @@ void UbloxCellularDriverGen::CLIR_URC()
     if (numChars > 0) {
         numValues = sscanf(buf, ": %d,%d", &a, &b);
         if (numValues > 0) {
-            _ssUrc = true;
-            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
-            memcpy (_ssUrcBuf, "+CLIR", 5);
-            memcpy (_ssUrcBuf + 5, buf, numChars);
-            switch (a) {
-                case 0:
-                    tr_debug("Calling Line ID restriction is as subscribed");
-                    break;
-                case 1:
-                    tr_debug("Calling Line ID invocation");
-                    break;
-                case 2:
-                    tr_debug("Calling Line ID suppression");
-                    break;
-            }
-            if (numValues > 2) {
-                switch (b) {
-                    case 0:
-                        tr_debug(" is not provisioned");
-                        break;
-                    case 1:
-                        tr_debug(" is provisioned permanently");
-                        break;
-                    case 2:
-                        tr_debug(" is unknown");
-                        break;
-                    case 3:
-                        tr_debug(" is in temporary mode, presentation restricted");
-                        break;
-                    case 4:
-                        tr_debug(" is in temporary mode, presentation allowed");
-                        break;
+            if (_ssUrcBuf == NULL) {
+                _ssUrcBuf = (char *) malloc(numChars + 5 + 1);
+                if (_ssUrcBuf != NULL) {
+                    memcpy (_ssUrcBuf, "+CLIR", 5);
+                    memcpy (_ssUrcBuf + 5, buf, numChars);
+                    *(_ssUrcBuf + numChars + 5) = 0;
+                    switch (a) {
+                        case 0:
+                            tr_debug("Calling Line ID restriction is as subscribed");
+                            break;
+                        case 1:
+                            tr_debug("Calling Line ID invocation");
+                            break;
+                        case 2:
+                            tr_debug("Calling Line ID suppression");
+                            break;
+                    }
+                    if (numValues > 2) {
+                        switch (b) {
+                            case 0:
+                                tr_debug(" is not provisioned");
+                                break;
+                            case 1:
+                                tr_debug(" is provisioned permanently");
+                                break;
+                            case 2:
+                                tr_debug(" is unknown");
+                                break;
+                            case 3:
+                                tr_debug(" is in temporary mode, presentation restricted");
+                                break;
+                            case 4:
+                                tr_debug(" is in temporary mode, presentation allowed");
+                                break;
+                        }
+                    }
                 }
             }
         }
@@ -273,29 +285,33 @@ void UbloxCellularDriverGen::CLIP_URC()
     if (numChars > 0) {
         numValues = sscanf(buf, ": %d,%d", &a, &b);
         if (numValues > 0) {
-            _ssUrc = true;
-            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
-            memcpy (_ssUrcBuf, "+CLIP", 5);
-            memcpy (_ssUrcBuf + 5, buf, numChars);
-            switch (a) {
-                case 0:
-                    tr_debug("Calling Line ID disable");
-                    break;
-                case 1:
-                    tr_debug("Calling Line ID enable");
-                    break;
-            }
-            if (numValues > 1) {
-                switch (b) {
-                    case 0:
-                        tr_debug(" is not provisioned");
-                        break;
-                    case 1:
-                        tr_debug(" is provisioned");
-                        break;
-                    case 2:
-                        tr_debug(" is unknown");
-                        break;
+            if (_ssUrcBuf == NULL) {
+                _ssUrcBuf = (char *) malloc(numChars + 5 + 1);
+                if (_ssUrcBuf != NULL) {
+                    memcpy (_ssUrcBuf, "+CLIP", 5);
+                    memcpy (_ssUrcBuf + 5, buf, numChars);
+                    *(_ssUrcBuf + numChars + 5) = 0;
+                    switch (a) {
+                        case 0:
+                            tr_debug("Calling Line ID disable");
+                            break;
+                        case 1:
+                            tr_debug("Calling Line ID enable");
+                            break;
+                    }
+                    if (numValues > 1) {
+                        switch (b) {
+                            case 0:
+                                tr_debug(" is not provisioned");
+                                break;
+                            case 1:
+                                tr_debug(" is provisioned");
+                                break;
+                            case 2:
+                                tr_debug(" is unknown");
+                                break;
+                        }
+                    }
                 }
             }
         }
@@ -317,29 +333,33 @@ void UbloxCellularDriverGen::COLP_URC()
     if (numChars > 0) {
         numValues = sscanf(buf, ": %d,%d", &a, &b);
         if (numValues > 0) {
-            _ssUrc = true;
-            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
-            memcpy (_ssUrcBuf, "+COLP", 5);
-            memcpy (_ssUrcBuf + 5, buf, numChars);
-            switch (a) {
-                case 0:
-                    tr_debug("Connected Line ID disable");
-                    break;
-                case 1:
-                    tr_debug("Connected Line ID enable");
-                    break;
-            }
-            if (numValues > 1) {
-                switch (b) {
-                    case 0:
-                        tr_debug(" is not provisioned");
-                        break;
-                    case 1:
-                        tr_debug(" is provisioned");
-                        break;
-                    case 2:
-                        tr_debug(" is unknown");
-                        break;
+            if (_ssUrcBuf == NULL) {
+                _ssUrcBuf = (char *) malloc(numChars + 5 + 1);
+                if (_ssUrcBuf != NULL) {
+                    memcpy (_ssUrcBuf, "+COLP", 5);
+                    memcpy (_ssUrcBuf + 5, buf, numChars);
+                    *(_ssUrcBuf + numChars + 5) = 0;
+                    switch (a) {
+                        case 0:
+                            tr_debug("Connected Line ID disable");
+                            break;
+                        case 1:
+                            tr_debug("Connected Line ID enable");
+                            break;
+                    }
+                    if (numValues > 1) {
+                        switch (b) {
+                            case 0:
+                                tr_debug(" is not provisioned");
+                                break;
+                            case 1:
+                                tr_debug(" is provisioned");
+                                break;
+                            case 2:
+                                tr_debug(" is unknown");
+                                break;
+                        }
+                    }
                 }
             }
         }
@@ -359,25 +379,28 @@ void UbloxCellularDriverGen::COLR_URC()
     numChars = read_at_to_char(buf, sizeof (buf), '\n');
     if (numChars > 0) {
         if (sscanf(buf, ": %d", &a) > 0) {
-            _ssUrc = true;
-            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
-            memcpy (_ssUrcBuf, "COLR", 5);
-            memcpy (_ssUrcBuf + 5, buf, numChars);
-            switch (a) {
-                case 0:
-                    tr_debug("Connected Line ID restriction is not provisioned");
-                    break;
-                case 1:
-                    tr_debug("Connected Line ID restriction is provisioned");
-                    break;
-                case 2:
-                    tr_debug("Connected Line ID restriction is unknown");
-                    break;
+            if (_ssUrcBuf == NULL) {
+                _ssUrcBuf = (char *) malloc(numChars + 5 + 1);
+                if (_ssUrcBuf != NULL) {
+                    memcpy (_ssUrcBuf, "+COLR", 5);
+                    memcpy (_ssUrcBuf + 5, buf, numChars);
+                    *(_ssUrcBuf + numChars + 5) = 0;
+                    switch (a) {
+                        case 0:
+                            tr_debug("Connected Line ID restriction is not provisioned");
+                            break;
+                        case 1:
+                            tr_debug("Connected Line ID restriction is provisioned");
+                            break;
+                        case 2:
+                            tr_debug("Connected Line ID restriction is unknown");
+                            break;
+                    }
+                }
             }
         }
     }
 }
-
 
 /**********************************************************************
  * PUBLIC METHODS: Generic
@@ -389,6 +412,7 @@ UbloxCellularDriverGen::UbloxCellularDriverGen(PinName tx, PinName rx,
 {
     _smsIndex = NULL;
     _smsNum = 0;
+    _ssUrcBuf = NULL;
 
     // Initialise the base class, which starts the AT parser
     baseClassInit(tx, rx, baud, debug_on);
@@ -508,7 +532,9 @@ bool UbloxCellularDriverGen::ussdCommand(const char* cmd, char* buf, int len)
 {
     bool success = false;
     char * tmpBuf;
+    int atTimeout = _at_timeout;
     int x;
+    Timer timer;
     LOCK();
 
     if (len > 0) {
@@ -523,31 +549,44 @@ bool UbloxCellularDriverGen::ussdCommand(const char* cmd, char* buf, int len)
             memset (tmpBuf, 0, USSD_STRING_LENGTH + 1);
             // +CUSD: \"%*d, \"%128[^\"]\",%*d"
             if (_at->send("AT+CUSD=1,\"%s\"", cmd)) {
-                _ssUrc= false;
-                if (_at->recv("+CUSD: %*d,\"")) {
-                    // Note: don't wait for "OK" here as the +CUSD response may come
-                    // before or after the OK
-                    // Also, the return string may include newlines so can't just use
-                    // recv() to capture it as recv() will stop capturing at a newline.
-                    if (read_at_to_char(tmpBuf, USSD_STRING_LENGTH, '\"') > 0) {
-                        success = true;
-                        memcpy (buf, tmpBuf, len);
-                        *(buf + len - 1) = 0;
-                    }
-                } else {
-                    // Some of the return values do not appear as +CUSD but
-                    // instead as the relevant URC for call waiting, call forwarding,
-                    // etc.  Test those here.
-                    if (_ssUrc) {
-                        success = true;
-                        x = strlen (_ssUrcBuf);
-                        if (x > len - 1 ) {
-                            x = len - 1;
+                // Wait for either +CUSD to come back or
+                // one of the other SS related URCs to trigger
+                if (_ssUrcBuf != NULL) {
+                    free (_ssUrcBuf);
+                    _ssUrcBuf = NULL;
+                }
+                timer.start();
+                _at->set_timeout(1000);
+                while (!success && (timer.read_ms() < atTimeout)) {
+                    if (_at->recv("+CUSD: %*d,\"")) {
+                        // Note: don't wait for "OK" here as the +CUSD response may come
+                        // before or after the OK
+                        // Also, the return string may include newlines so can't just use
+                        // recv() to capture it as recv() will stop capturing at a newline.
+                        if (read_at_to_char(tmpBuf, USSD_STRING_LENGTH, '\"') > 0) {
+                            success = true;
+                            memcpy (buf, tmpBuf, len);
+                            *(buf + len - 1) = 0;
                         }
-                        memcpy (buf, _ssUrcBuf, x);
-                        *(buf + x) = 0;
+                    } else {
+                        // Some of the return values do not appear as +CUSD but
+                        // instead as the relevant URC for call waiting, call forwarding,
+                        // etc.  Test those here.
+                        if (_ssUrcBuf != NULL) {
+                            success = true;
+                            x = strlen (_ssUrcBuf);
+                            if (x > len - 1 ) {
+                                x = len - 1;
+                            }
+                            memcpy (buf, _ssUrcBuf, x);
+                            *(buf + x) = 0;
+                            free (_ssUrcBuf);
+                            _ssUrcBuf = NULL;
+                        }
                     }
                 }
+                at_set_timeout(atTimeout);
+                timer.stop();
             }
         }
     }
