@@ -14,14 +14,76 @@ using namespace utest::v1;
 // COMPILE-TIME MACROS
 // ----------------------------------------------------------------
 
-#ifndef TEST_APN
-# define TEST_APN         "jtm2m"
+// These macros can be overridden with an mbed_app.json file and
+// contents of the following form:
+//
+//{
+//    "config": {
+//        "apn": {
+//            "value": "\"my_apn\""
+//        }
+//}
+
+// The credentials of the SIM in the board.
+#ifndef MBED_CONF_APP_DEFAULT_PIN
+// Note: this is the PIN for the SIM with ICCID
+// 8944501104169548380.
+# define MBED_CONF_APP_DEFAULT_PIN "5134"
 #endif
-#ifndef TEST_USERNAME
-# define TEST_USERNAME    NULL
+
+// Network credentials.
+#ifndef MBED_CONF_APP_APN
+# define MBED_CONF_APP_APN         NULL
 #endif
-#ifndef TEST_PASSWORD
-# define TEST_PASSWORD    NULL
+#ifndef MBED_CONF_APP_USERNAME
+# define MBED_CONF_APP_USERNAME    NULL
+#endif
+#ifndef MBED_CONF_APP_PASSWORD
+# define MBED_CONF_APP_PASSWORD    NULL
+#endif
+
+// http://www.geckobeach.com/cellular/secrets/gsmcodes.php
+// https://en.wikipedia.org/wiki/Unstructured_Supplementary_Service_Data
+
+// A few USSD commands to try, set to "" to skip
+#ifndef MBED_CONF_APP_USSD_COMMAND_1
+#  define MBED_CONF_APP_USSD_COMMAND_1 "*100#"
+#endif
+
+#ifndef MBED_CONF_APP_USSD_COMMAND_2
+#  define MBED_CONF_APP_USSD_COMMAND_2 "*#21#"
+#endif
+
+#ifndef MBED_CONF_APP_USSD_COMMAND_3
+#  define MBED_CONF_APP_USSD_COMMAND_3 "*#30#"
+#endif
+
+#ifndef MBED_CONF_APP_USSD_COMMAND_4
+#  define MBED_CONF_APP_USSD_COMMAND_4 "*#31#"
+#endif
+
+#ifndef MBED_CONF_APP_USSD_COMMAND_5
+#  define MBED_CONF_APP_USSD_COMMAND_5 "*#43#"
+#endif
+
+#ifndef MBED_CONF_APP_USSD_COMMAND_6
+#  define MBED_CONF_APP_USSD_COMMAND_6 "*#61#"
+#endif
+
+#ifndef MBED_CONF_APP_USSD_COMMAND_7
+#  define MBED_CONF_APP_USSD_COMMAND_7 ""
+#endif
+
+#ifndef MBED_CONF_APP_USSD_COMMAND_8
+#  define MBED_CONF_APP_USSD_COMMAND_8 ""
+#endif
+
+#ifndef MBED_CONF_APP_USSD_COMMAND_9
+#  define MBED_CONF_APP_USSD_COMMAND_9 ""
+#endif
+
+#ifndef MBED_CONF_APP_USSD_COMMAND_10
+#  define MBED_CONF_APP_USSD_COMMAND_10 ""
 #endif
 
 // ----------------------------------------------------------------
@@ -36,6 +98,8 @@ static UbloxCellularDriverGen *pDriver =
        new UbloxCellularDriverGen(MDMTXD, MDMRXD,
                                   MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
                                   true);
+// A general purpose buffer
+static char buf[USSD_STRING_LENGTH + 1];
 
 // ----------------------------------------------------------------
 // PRIVATE FUNCTIONS
@@ -56,9 +120,72 @@ static void unlock()
 // TESTS
 // ----------------------------------------------------------------
 
-// Do a thing with a thing
-void test_a_thing() {
+// Test USSD
+void test_ussd() {
+    TEST_ASSERT(pDriver->init(MBED_CONF_APP_DEFAULT_PIN));
+    TEST_ASSERT(pDriver->nwk_registration());
 
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_1) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_1);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_1, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_2) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_2);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_2, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_3) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_3);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_3, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_4) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_4);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_4, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_5) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_5);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_5, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_6) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_6);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_6, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_7) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_7);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_7, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_8) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_8);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_8, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_9) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_9);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_9, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    if (strlen(MBED_CONF_APP_USSD_COMMAND_10) > 0) {
+        tr_debug("Sending : \"%s\".", MBED_CONF_APP_USSD_COMMAND_10);
+        TEST_ASSERT(pDriver->ussdCommand(MBED_CONF_APP_USSD_COMMAND_10, buf, sizeof (buf)));
+        tr_debug("USSD answer: \"%s\".", buf);
+    }
+
+    TEST_ASSERT(pDriver->nwk_deregistration());
 }
 
 // ----------------------------------------------------------------
@@ -74,7 +201,7 @@ utest::v1::status_t test_setup(const size_t number_of_cases) {
 
 // Test cases
 Case cases[] = {
-    Case("A test", test_a_thing)
+    Case("USSD test", test_ussd)
 
 };
 

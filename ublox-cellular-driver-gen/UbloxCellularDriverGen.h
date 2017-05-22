@@ -38,6 +38,8 @@ public:
     /** Count the number of messages in the device and optionally return a
      * list with indexes from the storage locations in the device.
      *
+     * Note: init() should be called before using this command.
+     *
      * @param stat  what type of messages you can use:
      *              "REC UNREAD", "REC READ", "STO UNSENT", "STO SENT", "ALL".
      * @param index list where to save the storage positions.
@@ -47,6 +49,8 @@ public:
     int smsList(const char* stat = "ALL", int* index = NULL, int num = 0);
     
     /** Read a message from a storage position.
+     *
+     * Note: init() should be called before using this command.
      *
      * @param ix  the storage position to read.
      * @param num the originator address (~16 chars).
@@ -58,12 +62,17 @@ public:
     
     /** Delete a message.
      *
+     * Note: init() should be called before using this command.
+     *
      * @param index the storage position to delete.
      * @return true if successful, false otherwise.
      */
     bool smsDelete(int index);
     
     /** Send a message to a recipient.
+     *
+     * Note: init() should be called before using this command and,
+     * in many cases, nwk_registration() is also required.
      *
      * @param num the phone number of the recipient.
      * @param buf the content of the message to sent.
@@ -75,18 +84,31 @@ public:
      * PUBLIC: Unstructured Supplementary Service Data
      **********************************************************************/
     
-    /** The size of a USSD storage buffer.
+    /** The maximum size of a USSD string (not including terminator).
      */
-    #define USSD_BUFFER_SIZE 128
+    #define USSD_STRING_LENGTH 128
 
-    /** Send a message.
+    /** Make a USSD query.
      *
-     * @param cmd the ussd command to send e.g "*#06#".
-     * @param buf a buffer where to save the reply, must be at least
-     *            USSD_BUFFER_SIZE in size.
+     * Note: init() should be called before using this command and,
+     * in many cases, nwk_registration() is also required.
+     *
+     * Note: some USSD commands relate to call waiting, call forwarding,
+     * etc, which can result in multiple responses.  This function returns
+     * only the last response.  Instantiate this class with debugOn set to
+     * true to get a better view of what is really going on.  If such
+     * responses are important to you, you should subclass this class and
+     * parse for them specifically and, probably, use specific AT commands
+     * rather than USSD.
+     *
+     * @param cmd the ussd command to send e.g "*#100#".
+     * @param buf a buffer where to save the reply, which
+     *            will always be returned zero terminated.
+     * @param len the length of buf, set to USSD_STRING_LENGTH + 1 to
+     *            obtain the maximum length response plus terminator.
      * @return    true if successful, false otherwise.
      */
-    bool ussdCommand(const char* cmd, char* buf);
+    bool ussdCommand(const char* cmd, char* buf, int len);
     
     /**********************************************************************
      * PUBLIC: Module File System
@@ -95,12 +117,16 @@ public:
     /** Delete a file from the module's local file system.  An attempt
      * to delete a non-existent file will fail.
      *
+     * Note: init() should be called before using this command.
+     *
      * @param filename the name of the file.
      * @return         true if successful, false otherwise.
      */
     bool delFile(const char* filename);
     
     /** Write some data to a file in the module's local file system.
+     *
+     * Note: init() should be called before using this command.
      *
      * @param  filename the name of the file.
      * @param  buf the data to write.
@@ -109,27 +135,20 @@ public:
      */
     int writeFile(const char* filename, const char* buf, int len);
     
-    /** Read a short file, one which can be read in a single line
-     * of 128 characters, from the module's local file system.
+    /** Read a file from the module's local file system.
      *
-     * @param  filename the name of the file.
-     * @param  buf a buffer to hold the data.
-     * @param  len the size to read.
-     * @return the number of bytes read.
-     */
-    int readFile(const char* filename, char* buf, int len);
-    
-    /** Read a file from the module's local file system that might
-     * have contents longer than 128 charaxters.
+     * Note: init() should be called before using this command.
      *
      * @param  filename the name of the file
      * @param  buf a buffer to hold the data
      * @param  len the size to read
      * @return the number of bytes read
     */
-    int readFileNew(const char* filename, char* buf, int len);
+    int readFile(const char* filename, char* buf, int len);
     
     /** Retrieve the file size from the module's local file system.
+     *
+     * Note: init() should be called before using this command.
      *
      * @param  filename the name of the file.
      * @return the file size in bytes.
@@ -170,6 +189,43 @@ protected:
     /** URC for non-class 0 SMS messages.
      */
     void CMT_URC();
+
+
+    /**********************************************************************
+     * PROTECTED: Unstructured Supplementary Service Data
+     **********************************************************************/
+
+    /** Flag to indicate that a SS URC has landed.
+     */
+    volatile bool _ssUrc;
+
+    /** A buffer for the string assembled from the URC.
+     */
+    char _ssUrcBuf[USSD_STRING_LENGTH + 1];
+
+    /** URC for call waiting.
+     */
+    void CCWA_URC();
+
+    /** URC for call forwarding.
+     */
+    void CCFC_URC();
+
+    /** URC for calling lined ID restriction.
+     */
+    void CLIR_URC();
+
+    /** URC for calling lined ID presentation.
+     */
+    void CLIP_URC();
+
+    /** URC for connected lined ID restriction.
+     */
+    void COLR_URC();
+
+    /** URC for connected lined ID presentation.
+     */
+    void COLP_URC();
 
     /**********************************************************************
      * PROTECTED: File System

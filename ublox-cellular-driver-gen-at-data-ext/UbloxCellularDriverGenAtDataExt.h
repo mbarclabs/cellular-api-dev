@@ -54,105 +54,147 @@ public:
     /** Type of HTTP Operational Codes (reference to HTTP control +UHTTP).
      */
     typedef enum {
-        HTTP_IP_ADDRESS,
-        HTTP_SERVER_NAME,
-        HTTP_USER_NAME,
-        HTTP_PASSWORD,
-        HTTP_AUTH_TYPE,
-        HTTP_SERVER_PORT,
-        HTTP_SECURE
+        HTTP_IP_ADDRESS = 0,
+        HTTP_SERVER_NAME = 1,
+        HTTP_USER_NAME = 2,
+        HTTP_PASSWORD = 3,
+        HTTP_AUTH_TYPE = 4,
+        HTTP_SERVER_PORT = 5,
+        HTTP_SECURE = 6
     } HttpOpCode;
 
-    /** Type of HTTP Commands (reference to HTTP command +UHTTPC).
+    /** Type of HTTP Commands.
      */
     typedef enum {
-        HTTP_HEAD,
-        HTTP_GET,
-        HTTP_DELETE,
-        HTTP_PUT,
-        HTTP_POST_FILE,
-        HTTP_POST_DATA
+        HTTP_HEAD = 0,
+        HTTP_GET = 1,
+        HTTP_DELETE = 2,
+        HTTP_PUT = 3,
+        HTTP_POST_FILE = 4,
+        HTTP_POST_DATA = 5
     } HttpCmd;
 
-    /** Find HTTP profile.
-     *
-     * @return true if successfully, false otherwise.
+    /** HTTP content types
      */
-    int httpFindProfile();
-    
-    /** Get the number of bytes pending for reading for this HTTP profile.
+    typedef enum {
+        HTTP_CONTENT_URLENCODED = 0,
+        HTTP_CONTENT_TEXT = 1,
+        HTTP_CONTENT_OCTET_STREAM = 2,
+        HTTP_CONTENT_FORM_DATA = 3,
+        HTTP_CONTENT_JSON = 4,
+        HTTP_CONTENT_XML = 5,
+        HTTP_CONTENT_USER_DEFINED = 6
+    } HttpContentType;
+
+    /** Find a free HTTP profile.
      *
-     * @param profile    the HTTP profile handle.
-     * @param timeout_ms -1 blocking, else non-blocking timeout in milliseconds.
-     * @return           0 if successful or SOCKET_ERROR on failure.
-     */
-    bool httpSetBlocking(int profile, int timeout_ms);
-    
-    /** Set the HTTP profile for commands management.
+     * A profile will be blocking when first allocated.
      *
-     * @param profile the HTTP profile handle.
-     * @return        true if successfully, false otherwise.
+     * @return the profile or negative if none are available.
      */
-    bool httpSetProfileForCmdMng(int profile);
+    int httpAllocProfile();
     
     /** Free the HTTP profile.
      *
      * @param profile the HTTP profile handle.
-     * @return        true if successfully, false otherwise.
+     * @return           true if successful, otherwise false.
      */
     bool httpFreeProfile(int profile);
+
+    /** Set the timeout for this profile.
+     *
+     * @param profile    the HTTP profile handle.
+     * @param timeout_ms -1 blocking, else non-blocking timeout in milliseconds.
+     * @return           true if successful, otherwise false.
+     */
+    bool httpSetTimeout(int profile, int timeout_ms);
     
-    /** Reset HTTP profile.
+    /** Reset a HTTP profile back to defaults.
+     *
+     * This may be called if the state of a HTTP profile
+     * during parameter setting or exchange of HTTP commands
+     * has become confusing/unknown.
      *
      * @param httpProfile the HTTP profile to be reset.
-     * @return            true if successfully, false otherwise.
+     * @return            true if successful, false otherwise.
      */
     bool httpResetProfile(int httpProfile);
     
     /** Set HTTP parameters.
      *
+     * This should be called as many times as is necessary
+     * to set all the possible parameters (HttpOpCodes).
+     *
+     * See section 28.1 of u-blox-ATCommands_Manual(UBX-13002752).pdf
+     * for full details.  By example:
+     *
+     * httpOpCode          httpInPar
+     * HTTP_IP_ADDRESS     "145.33.18.10" (the target server IP address)
+     * HTTP_SERVER_NAME    "www.myserver.com" (the target server name)
+     * HTTP_USER_NAME      "my_username"
+     * HTTP_PASSWORD       "my_password"
+     * HTTP_AUTH_TYPE      "0" for no authentication, "1" for username/password
+     *                     authentication
+     * HTTP_SERVER_PORT    "81" (default is port 80)
+     * HTTP_SECURE         "0" for no security, "1" for TLS
+     *
      * @param httpProfile the HTTP profile identifier.
      * @param httpOpCode  the HTTP operation code.
      * @param httpInPar   the HTTP input parameter.
-     * @return            true if successfully, false otherwise.
+     * @return            true if successful, false otherwise.
      */
     bool httpSetPar(int httpProfile, HttpOpCode httpOpCode, const char * httpInPar);
     
-    /** HTTP commands management.
+    /** Perform a HTTP command.
+     *
+     * See section 28.3 of u-blox-ATCommands_Manual(UBX-13002752).pdf
+     * for full details.  By example, it works like this:
+     *
+     * httpCmd        httpPath       rspFile     sendStr  httpContentType httpCustomPar
+     * HEAD       "path/file.html"     NULL       NULL         0             NULL
+     * GET        "path/file.html"     NULL       NULL         0             NULL
+     * DELETE     "path/file.html"     NULL       NULL         0             NULL
+     * PUT        "path/file.html"     NULL    "myfile.txt"  0 to 6         Note 1
+     * POST_FILE  "path/file.html"     NULL    "myfile.txt"  0 to 6         Note 1
+     * POST       "path/file.html"     NULL   "hello there!" 0 to 6         Note 1
+     *
+     * Note 1: httpCustomPar is only applicable when httpContentType = HTTP_CONTENT_USER_DEFINED.
+     *
+     * The server to which this command is directed must have previously been
+     * set with a call to httpSetPar().  If the server requires TLS (i.e. "HTTPS"),
+     * then set that up with httpSetPar() also (HTTP_SECURE).
+     *
+     * rspFile may be left as NULL as the server response will be returned in buf.
+     * Alternatively, a rspFile may be given (e.g. "myresponse.txt") and this can
+     * later be read from the modem file system using readFile().
      *
      * @param httpProfile     the HTTP profile identifier.
-     * @param httpCmdCode     the HTTP command code.
-     * @param httpPath        the path of HTTP server resource.
-     * @param httpOut         the filename where the HTTP server response will be stored.
-     * @param httpIn          the input data (filename or string) to be sent
-                              to the HTTP server with the command request.
+     * @param httpCmd         the HTTP command.
+     * @param httpPath        the path of resource on the HTTP server.
+     * @param rspFile         the local modem file where the server
+     *                        response will be stored, use NULL for
+     *                        don't care.
+     * @param sendStr         the filename or string to be sent
+     *                        to the HTTP server with the command request.
      * @param httpContentType the HTTP Content-Type identifier.
-     * @param httpCustomPar   the parameter for an user defined HTTP Content-Type.
+     * @param httpCustomPar   the parameter for a user defined HTTP Content-Type.
      * @param buf             the buffer to read into.
      * @param len             the size of the buffer to read into.
-     * @return                true if successfully, false otherwise.
+     * @return                true if successful, false otherwise.
      */
-    bool httpCommand(int httpProfile, HttpCmd httpCmdCode, const char* httpPath, \
-                     const char* httpOut, const char* httpIn, int httpContentType, \
-                     const char* httpCustomPar, char* buf, int len);
-    
-    /** Get HTTP command as a string.
-     *
-     * @param httpCmdCode the HTTP command code (reference also the enum format).
-     * @return            HTTP command in string format.
-     */
-    const char* getHttpCmd(int httpCmdCode);
+    bool httpCommand(int httpProfile, HttpCmd httpCmd, const char* httpPath,
+                     const char* rspFile, const char* sendStr,
+                     int httpContentType, const char* httpCustomPar,
+                     char* buf, int len);
 
     /**********************************************************************
      * PUBLIC: Cell Locate
      **********************************************************************/
  
-    #define CELL_MAX_HYP    (16 + 1)
-
     /** Which form of Cell Locate sensing to use.
      */
     typedef enum {
-        CELL_LAST = 0,
+        CELL_LAST,
         CELL_GNSS,
         CELL_LOCATE,
         CELL_HYBRID
@@ -168,17 +210,17 @@ public:
     /** Cell Locate data.
      */
     typedef struct {
-        bool validData;      //!< Flag for indicating if data is valid.
-        struct tm time;      //!< GPS Timestamp.
-        float longitude;     //!< Estimated longitude, in degrees.
-        float latitude;      //!< Estimated latitude, in degrees.
-        int altitude;        //!< Estimated altitude, in meters^2.
-        int uncertainty;     //!< Maximum possible error, in meters.
-        int speed;           //!< Speed over ground m/s^2.
-        int direction;       //!< Course over ground in degrees.
-        int verticalAcc;     //!< Vertical accuracy, in meters^2.
-        CellSensType sensor; //!< Sensor used for last calculation.
-        int svUsed;          //!< number of satellite used.
+        volatile bool validData;      //!< Flag for indicating if data is valid.
+        volatile struct tm time;      //!< GPS Timestamp.
+        volatile float longitude;     //!< Estimated longitude, in degrees.
+        volatile float latitude;      //!< Estimated latitude, in degrees.
+        volatile int altitude;        //!< Estimated altitude, in meters^2.
+        volatile int uncertainty;     //!< Maximum possible error, in meters.
+        volatile int speed;           //!< Speed over ground m/s^2.
+        volatile int direction;       //!< Course over ground in degrees.
+        volatile int verticalAcc;     //!< Vertical accuracy, in meters^2.
+        volatile CellSensType sensor; //!< Sensor used for last calculation.
+        volatile int svUsed;          //!< number of satellite used.
     } CellLocData;
 
     /** Configure the Cell Locate TCP aiding server.
@@ -217,13 +259,6 @@ public:
     bool cellLocSrvUdp(const char* server_1 = "cell-live1.services.u-blox.com",
                        int port = 46434, int latency = 1000, int mode = 0);
  
-    /** Configure Cell Locate URCs in the case of +ULOC operations.
-     *
-     * @param mode URC configuration: 0 disabled, 1 enabled.
-     * @return     true if the request is successful, otherwise false.
-     */
-    bool cellLocUnsol(int mode);
- 
     /** Configure Cell Locate location sensor.
      *
      * @param scanMode network scan mode: 0 normal, 1 deep scan.
@@ -231,20 +266,25 @@ public:
      */
     bool cellLocConfig(int scanMode);
  
-    /** Request Cell Locate.
+    /** Request a one-shot Cell Locate.
      *
      * This function is non-blocking, the result is retrieved using cellLocGetxxx.
+     *
+     * Note: during the location process, unsolicited result codes will be returned
+     * by the modem indicating progress and potentially flagging interesting errors.
+     * In order to see these errors, instantiate this class with debugOn set to true.
      *   
      * @param sensor     sensor selection.
      * @param timeout    timeout period in seconds (1 - 999).
      * @param accuracy   target accuracy in meters (1 - 999999).
      * @param type       detailed or multi-hypothesis.
-     * @param hypothesis maximum desired number of responses from CellLocate (up to 16).
+     * @param hypothesis maximum desired number of responses from CellLocate (up to 16),
+     *                   must be 1 if type is CELL_DETAILED.
      * @return           true if the request is successful, otherwise false.
      */
     bool cellLocRequest(CellSensType sensor, int timeout, int accuracy,
                         CellRespType type = CELL_DETAILED, int hypothesis = 1);
- 
+
     /** Get a position record.
      *
      * @param data  pointer to a CellLocData structure where the location will be put.
@@ -293,9 +333,9 @@ protected:
      typedef struct {
          int modemHandle;
          int timeout_ms;
-         bool pending;
-         int cmd;
-         int result;
+         volatile bool pending;
+         volatile int cmd;
+         volatile int result;
      } HttpProfCtrl;
 
     /** The HTTP profile storage.
@@ -314,17 +354,30 @@ protected:
      */
     int findProfile(int modemHandle = HTTP_PROF_UNUSED);
 
+
+    /** Helper function to get a HTTP command as a text string, useful
+     * for debug purposes.
+     *
+     * @param httpCmdCode the HTTP command.
+     * @return            HTTP command in string format.
+     */
+    const char* getHttpCmd(HttpCmd httpCmd);
+
     /**********************************************************************
      * PROTECTED: Cell Locate
      **********************************************************************/
 
+    /**  The maximum number of hypotheses
+     */
+    #define CELL_MAX_HYP    (16 + 1)
+
     /** Received positions.
      */
-    int _locRcvPos;
+    volatile int _locRcvPos;
 
     /** Expected positions.
      */
-    int _locExpPos;
+    volatile int _locExpPos;
 
     /**  The Cell Locate data.
      */
@@ -333,6 +386,10 @@ protected:
     /** Buffer for the URC to work with
      */
     char urcBuf[128];
+
+    /** Callback to capture +UULOCIND.
+     */
+    void UULOCIND_URC();
 
     /** Callback to capture +UULOC.
      */

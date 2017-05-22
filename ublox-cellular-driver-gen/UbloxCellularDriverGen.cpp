@@ -37,7 +37,7 @@ void UbloxCellularDriverGen::CMGL_URC()
     // Note: not calling _at->recv() from here as we're
     // already in an _at->recv()
     // +CMGL: <ix>,...
-    if (read_at_to_newline(buf, sizeof (buf)) > 0) {
+    if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
         if ((_smsIndex != NULL) && (_smsNum > 0)) {
             if (sscanf(buf, ": %d,", &index) == 1) {
                 *_smsIndex++ = index;
@@ -54,9 +54,9 @@ void UbloxCellularDriverGen::CMTI_URC()
 
     // Note: not calling _at->recv() from here as we're
     // already in an _at->recv()
-    if (read_at_to_newline(buf, sizeof (buf)) > 0) {
+    if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
         // No need to parse, any content is good
-        tr_info("New SMS received");
+        tr_debug("New SMS received");
     }
 }
 
@@ -79,12 +79,305 @@ void UbloxCellularDriverGen::CMT_URC()
 
     // Note: not calling _at->recv() from here as we're
     // already in an _at->recv()
-    if (read_at_to_newline(buf, sizeof (buf)) > 0) {
+    if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
         if (sscanf(buf, ": %49[^\"]\",,%14[^\"]\"", text, serviceTimestamp) == 2) {
-            tr_info("SMS: %s, %s", serviceTimestamp, text);
+            tr_debug("SMS: %s, %s", serviceTimestamp, text);
         }
     }
 }
+
+/**********************************************************************
+ * PROTECTED METHODS: Unstructured Supplementary Service Data
+ **********************************************************************/
+
+// URC for call waiting.
+void UbloxCellularDriverGen::CCWA_URC()
+{
+    char buf[32];
+    int numChars;
+    int a;
+    int b = 0;
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +CCWA: <status>[, <class>]
+    numChars = read_at_to_char(buf, sizeof (buf), '\n');
+    if (numChars > 0) {
+        if (sscanf(buf, ": %d, %d", &a, &b) > 0) {
+            _ssUrc = true;
+            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
+            memcpy (_ssUrcBuf, "+CCWA", 5);
+            memcpy (_ssUrcBuf + 5, buf, numChars);
+            if (a > 0) {
+                tr_debug("Calling Waiting is active");
+            } else {
+                tr_debug("Calling Waiting is not active");
+            }
+            if (b > 0) {
+                if (b & 0x01) {
+                    tr_debug(" for voice");
+                }
+                if (b & 0x02) {
+                    tr_debug(" for data");
+                }
+                if (b & 0x04) {
+                    tr_debug(" for fax");
+                }
+                if (b & 0x08) {
+                    tr_debug(" for SMS");
+                }
+                if (b & 0x10) {
+                    tr_debug(" for data circuit sync");
+                }
+                if (b & 0x20) {
+                    tr_debug(" for data circuit async");
+                }
+                if (b & 0x40) {
+                    tr_debug(" for dedicated packet access");
+                }
+                if (b & 0x80) {
+                    tr_debug(" for dedicated PAD access");
+                }
+            }
+        }
+    }
+}
+
+// URC for call forwarding.
+void UbloxCellularDriverGen::CCFC_URC()
+{
+    char buf[32];
+    int numChars;
+    char num[32];
+    int a, b;
+    int numValues;
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +CCFC: <status>[, <class>]
+    numChars = read_at_to_char(buf, sizeof (buf), '\n');
+    if (numChars > 0) {
+        memset (num, 0, sizeof (num));
+        numValues = sscanf(buf, ": %d,%d,\"%32[^\"][\"]", &a, &b, num);
+        if (numValues > 0) {
+            _ssUrc = true;
+            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
+            memcpy (_ssUrcBuf, "+CCFC", 5);
+            memcpy (_ssUrcBuf + 5, buf, numChars);
+            if (a > 0) {
+                tr_debug("Calling Forwarding is active");
+            } else {
+                tr_debug("Calling Forwarding is not active");
+            }
+            if (numValues > 1) {
+                if (b > 0) {
+                    if (b & 0x01) {
+                        tr_debug(" for voice");
+                    }
+                    if (b & 0x02) {
+                        tr_debug(" for data");
+                    }
+                    if (b & 0x04) {
+                        tr_debug(" for fax");
+                    }
+                    if (b & 0x08) {
+                        tr_debug(" for SMS");
+                    }
+                    if (b & 0x10) {
+                        tr_debug(" for data circuit sync");
+                    }
+                    if (b & 0x20) {
+                        tr_debug(" for data circuit async");
+                    }
+                    if (b & 0x40) {
+                        tr_debug(" for dedicated packet access");
+                    }
+                    if (b & 0x80) {
+                        tr_debug(" for dedicated PAD access");
+                    }
+                }
+            }
+            if (numValues > 2) {
+                tr_debug(" for %s", num);
+            }
+        }
+    }
+}
+
+
+// URC for calling line ID restriction.
+void UbloxCellularDriverGen::CLIR_URC()
+{
+    char buf[32];
+    int numChars;
+    int a, b;
+    int numValues;
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +CLIR: <n>[, <m>]
+    numChars = read_at_to_char(buf, sizeof (buf), '\n');
+    if (numChars > 0) {
+        numValues = sscanf(buf, ": %d,%d", &a, &b);
+        if (numValues > 0) {
+            _ssUrc = true;
+            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
+            memcpy (_ssUrcBuf, "+CLIR", 5);
+            memcpy (_ssUrcBuf + 5, buf, numChars);
+            switch (a) {
+                case 0:
+                    tr_debug("Calling Line ID restriction is as subscribed");
+                    break;
+                case 1:
+                    tr_debug("Calling Line ID invocation");
+                    break;
+                case 2:
+                    tr_debug("Calling Line ID suppression");
+                    break;
+            }
+            if (numValues > 2) {
+                switch (b) {
+                    case 0:
+                        tr_debug(" is not provisioned");
+                        break;
+                    case 1:
+                        tr_debug(" is provisioned permanently");
+                        break;
+                    case 2:
+                        tr_debug(" is unknown");
+                        break;
+                    case 3:
+                        tr_debug(" is in temporary mode, presentation restricted");
+                        break;
+                    case 4:
+                        tr_debug(" is in temporary mode, presentation allowed");
+                        break;
+                }
+            }
+        }
+    }
+}
+
+// URC for calling line ID presentation.
+void UbloxCellularDriverGen::CLIP_URC()
+{
+    char buf[32];
+    int numChars;
+    int a, b;
+    int numValues;
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +CLIP: <n>[, <m>]
+    numChars = read_at_to_char(buf, sizeof (buf), '\n');
+    if (numChars > 0) {
+        numValues = sscanf(buf, ": %d,%d", &a, &b);
+        if (numValues > 0) {
+            _ssUrc = true;
+            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
+            memcpy (_ssUrcBuf, "+CLIP", 5);
+            memcpy (_ssUrcBuf + 5, buf, numChars);
+            switch (a) {
+                case 0:
+                    tr_debug("Calling Line ID disable");
+                    break;
+                case 1:
+                    tr_debug("Calling Line ID enable");
+                    break;
+            }
+            if (numValues > 1) {
+                switch (b) {
+                    case 0:
+                        tr_debug(" is not provisioned");
+                        break;
+                    case 1:
+                        tr_debug(" is provisioned");
+                        break;
+                    case 2:
+                        tr_debug(" is unknown");
+                        break;
+                }
+            }
+        }
+    }
+}
+
+// URC for connected line ID presentation.
+void UbloxCellularDriverGen::COLP_URC()
+{
+    char buf[32];
+    int numChars;
+    int a, b;
+    int numValues;
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +COLP: <n>[, <m>]
+    numChars = read_at_to_char(buf, sizeof (buf), '\n');
+    if (numChars > 0) {
+        numValues = sscanf(buf, ": %d,%d", &a, &b);
+        if (numValues > 0) {
+            _ssUrc = true;
+            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
+            memcpy (_ssUrcBuf, "+COLP", 5);
+            memcpy (_ssUrcBuf + 5, buf, numChars);
+            switch (a) {
+                case 0:
+                    tr_debug("Connected Line ID disable");
+                    break;
+                case 1:
+                    tr_debug("Connected Line ID enable");
+                    break;
+            }
+            if (numValues > 1) {
+                switch (b) {
+                    case 0:
+                        tr_debug(" is not provisioned");
+                        break;
+                    case 1:
+                        tr_debug(" is provisioned");
+                        break;
+                    case 2:
+                        tr_debug(" is unknown");
+                        break;
+                }
+            }
+        }
+    }
+}
+
+// URC for connected line ID restriction.
+void UbloxCellularDriverGen::COLR_URC()
+{
+    char buf[32];
+    int numChars;
+    int a;
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +COLR: <status>
+    numChars = read_at_to_char(buf, sizeof (buf), '\n');
+    if (numChars > 0) {
+        if (sscanf(buf, ": %d", &a) > 0) {
+            _ssUrc = true;
+            memset (_ssUrcBuf, 0, sizeof (_ssUrcBuf));
+            memcpy (_ssUrcBuf, "COLR", 5);
+            memcpy (_ssUrcBuf + 5, buf, numChars);
+            switch (a) {
+                case 0:
+                    tr_debug("Connected Line ID restriction is not provisioned");
+                    break;
+                case 1:
+                    tr_debug("Connected Line ID restriction is provisioned");
+                    break;
+                case 2:
+                    tr_debug("Connected Line ID restriction is unknown");
+                    break;
+            }
+        }
+    }
+}
+
 
 /**********************************************************************
  * PUBLIC METHODS: Generic
@@ -100,10 +393,19 @@ UbloxCellularDriverGen::UbloxCellularDriverGen(PinName tx, PinName rx,
     // Initialise the base class, which starts the AT parser
     baseClassInit(tx, rx, baud, debug_on);
 
-    // URCs, handled out of band
+    // URCs related to SMS
     _at->oob("+CMGL", callback(this, &UbloxCellularDriverGen::CMGL_URC));
     _at->oob("+CMT", callback(this, &UbloxCellularDriverGen::CMT_URC));
-    _at->oob("+CMTI", callback(this, &UbloxCellularDriverGen::CMTI_URC));}
+    _at->oob("+CMTI", callback(this, &UbloxCellularDriverGen::CMTI_URC));
+
+    // URCs relater to supplementary services
+    _at->oob("+CCWA", callback(this, &UbloxCellularDriverGen::CCWA_URC));
+    _at->oob("+CCFC", callback(this, &UbloxCellularDriverGen::CCFC_URC));
+    _at->oob("+CLIR", callback(this, &UbloxCellularDriverGen::CLIR_URC));
+    _at->oob("+CLIP", callback(this, &UbloxCellularDriverGen::CLIP_URC));
+    _at->oob("+COLP", callback(this, &UbloxCellularDriverGen::COLP_URC));
+    _at->oob("+COLR", callback(this, &UbloxCellularDriverGen::COLR_URC));
+}
 
 // Destructor.
 UbloxCellularDriverGen::~UbloxCellularDriverGen()
@@ -202,15 +504,53 @@ bool UbloxCellularDriverGen::smsRead(int index, char* num, char* buf, int len)
  **********************************************************************/
 
 // Perform a USSD command.
-bool UbloxCellularDriverGen::ussdCommand(const char* cmd, char* buf)
+bool UbloxCellularDriverGen::ussdCommand(const char* cmd, char* buf, int len)
 {
-    bool success;
+    bool success = false;
+    char * tmpBuf;
+    int x;
     LOCK();
 
-    *buf = '\0';
-    // +USD: \"%*[^\"]\",\"%[^\"]\",,\"%*[^\"]\",%d,%d,%d,%d,\"*[^\"]\",%d,%d"..);
-    success = _at->send("AT+CUSD=1,\"%s\"", cmd) &&
-              _at->recv("+CUSD: %*d,\"%[^\"]\",%*d", buf);
+    if (len > 0) {
+        *buf = 0;
+        if (len > USSD_STRING_LENGTH + 1) {
+            len = USSD_STRING_LENGTH + 1;
+        }
+
+        tmpBuf = (char *) malloc(USSD_STRING_LENGTH + 1);
+
+        if (tmpBuf != NULL) {
+            memset (tmpBuf, 0, USSD_STRING_LENGTH + 1);
+            // +CUSD: \"%*d, \"%128[^\"]\",%*d"
+            if (_at->send("AT+CUSD=1,\"%s\"", cmd)) {
+                _ssUrc= false;
+                if (_at->recv("+CUSD: %*d,\"")) {
+                    // Note: don't wait for "OK" here as the +CUSD response may come
+                    // before or after the OK
+                    // Also, the return string may include newlines so can't just use
+                    // recv() to capture it as recv() will stop capturing at a newline.
+                    if (read_at_to_char(tmpBuf, USSD_STRING_LENGTH, '\"') > 0) {
+                        success = true;
+                        memcpy (buf, tmpBuf, len);
+                        *(buf + len - 1) = 0;
+                    }
+                } else {
+                    // Some of the return values do not appear as +CUSD but
+                    // instead as the relevant URC for call waiting, call forwarding,
+                    // etc.  Test those here.
+                    if (_ssUrc) {
+                        success = true;
+                        x = strlen (_ssUrcBuf);
+                        if (x > len - 1 ) {
+                            x = len - 1;
+                        }
+                        memcpy (buf, _ssUrcBuf, x);
+                        *(buf + x) = 0;
+                    }
+                }
+            }
+        }
+    }
 
     UNLOCK();
     return success;
@@ -238,7 +578,7 @@ int UbloxCellularDriverGen::writeFile(const char* filename, const char* buf, int
     int bytesWritten = -1;
     LOCK();
 
-    if (_at->send("AT+UDWNFILE=\"%s\",%d", filename, len) && _at->recv("@")) {
+    if (_at->send("AT+UDWNFILE=\"%s\",%d", filename, len) && _at->recv(">")) {
         if ((_at->write(buf, len) >= len) && _at->recv("OK")) {
             bytesWritten = len;
         }
@@ -248,41 +588,8 @@ int UbloxCellularDriverGen::writeFile(const char* filename, const char* buf, int
     return bytesWritten;
 }
 
-// Read a buffer of data from a file in the module's file system.
+// Read a file from the module's file system
 int UbloxCellularDriverGen::readFile(const char* filename, char* buf, int len)
-{
-    int bytesRead = -1;
-    char respFilename[48];
-    char * tmpBuf = NULL;
-    int sz;
-    LOCK();
-
-    tmpBuf = (char *) malloc(len + 2); // +2 to allow for quotes
-    if ((tmpBuf != NULL) &&
-        _at->send("AT+URDFILE=\"%s\"", filename) &&
-        _at->recv("+URDFILE: \"%[^\"]\",%d,", respFilename, &sz) &&
-        (strcmp(filename, respFilename) == 0)) {
-        if (sz > 0) {
-            if (sz > len) {
-                sz = len;
-            }
-            if ((_at->read(tmpBuf, sz + 2) == sz + 2) && // +2 for quotes
-                 _at->recv("OK") &&
-                (tmpBuf[0] == '\"') && (tmpBuf[sz - 1] == '\"')) {
-                memcpy(buf, tmpBuf + 1, sz);
-                bytesRead = sz;
-            }
-        } else {
-            bytesRead = 0;
-        }
-    }
-
-    UNLOCK();
-    return bytesRead;
-}
-
-//The following function is useful for reading files with a dimension greater than 128 bytes
-int UbloxCellularDriverGen::readFileNew(const char* filename, char* buf, int len)
 {
     int countBytes = -1;  // Counter for file reading (default value)
     int bytesToRead = fileSize(filename);  // Retrieve the size of the file
@@ -293,7 +600,7 @@ int UbloxCellularDriverGen::readFileNew(const char* filename, char* buf, int len
     int sz;
     bool success = true;
 
-    tr_debug("readFileNew: filename is %s; size is %d", filename, bytesToRead);
+    tr_debug("readFile: filename is %s; size is %d", filename, bytesToRead);
 
     if (bytesToRead > 0)
     {
@@ -311,7 +618,7 @@ int UbloxCellularDriverGen::readFileNew(const char* filename, char* buf, int len
                 LOCK();
 
                 if (blockSize > 0) {
-                    if (_at->send("+URDBLOCK=\"%s\",%d,%d\r\n", filename, offset, blockSize) &&
+                    if (_at->send("AT+URDBLOCK=\"%s\",%d,%d\r\n", filename, offset, blockSize) &&
                         _at->recv("+URDBLOCK: \"%[^\"]\",%d,", respFilename, &sz)) {
                         if ((_at->read(tmpBuf, sz + 2) >= sz + 2) && // +2 for quotes
                             (tmpBuf[0] == '\"') && (tmpBuf[sz + 1] == '\"')) {
@@ -319,6 +626,7 @@ int UbloxCellularDriverGen::readFileNew(const char* filename, char* buf, int len
                             bytesToRead -= sz;
                             offset += sz;
                             buf += sz;
+                            _at->recv("OK");
                         } else {
                             success = false;
                         }
@@ -348,8 +656,9 @@ int UbloxCellularDriverGen::fileSize(const char* filename)
     int fileSize;
     LOCK();
 
-    if (_at->send("+ULSTFILE=2,\"%s\"", filename) &&
-        _at->recv("+ULSTFILE: %d", &fileSize)) {
+    if (_at->send("AT+ULSTFILE=2,\"%s\"", filename) &&
+        _at->recv("+ULSTFILE: %d\n", &fileSize) &&
+        _at->recv("OK")) {
         returnValue = fileSize;
     }
 

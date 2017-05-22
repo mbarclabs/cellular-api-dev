@@ -17,7 +17,7 @@
 #include "APN_db.h"
 #if defined(FEATURE_COMMON_PAL)
 #include "mbed_trace.h"
-#define TRACE_GROUP "UCID"
+#define TRACE_GROUP "UCAD"
 #else
 #define tr_debug(...) (void(0)) // dummies if feature common pal is not added
 #define tr_info(...)  (void(0)) // dummies if feature common pal is not added
@@ -36,12 +36,12 @@ void UbloxCellularDriverGenAtDataExt::UUHTTPCR_URC()
 
     // Note: not calling _at->recv() from here as we're
     // already in an _at->recv()
-    // +UHTTPCR: <profile_id>,<op_code>,<param_val>
-    if (read_at_to_newline(buf, sizeof (buf)) > 0) {
+    // +UUHTTPCR: <profile_id>,<op_code>,<param_val>
+    if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
         if (sscanf(buf, ": %d,%d,%d", &a, &b, &c) == 3) {
             _httpProfiles[a].cmd = b;          // Command
             _httpProfiles[a].result = c;       // Result
-            tr_debug("%s for profile %d: result code is %d", getHttpCmd(b), a, c);
+            tr_debug("%s on profile %d, result code is %d", getHttpCmd((HttpCmd) b), a, c);
         }
     }
 }
@@ -59,9 +59,116 @@ int UbloxCellularDriverGenAtDataExt::findProfile(int modemHandle)
     return HTTP_PROF_UNUSED;
 }
 
+// Return a string representing an AT command.
+const char * UbloxCellularDriverGenAtDataExt::getHttpCmd(HttpCmd httpCmd)
+{
+    const char * str = "HTTP command not recognised";
+
+    switch (httpCmd) {
+        case HTTP_HEAD:
+            str = "HTTP HEAD command";
+            break;
+        case HTTP_GET:
+            str = "HTTP GET command";
+            break;
+        case HTTP_DELETE:
+            str = "HTTP DELETE command";
+            break;
+        case HTTP_PUT:
+            str = "HTTP PUT command";
+            break;
+        case HTTP_POST_FILE:
+            str = "HTTP POST file command";
+            break;
+        case HTTP_POST_DATA:
+            str = "HTTP POST data command";
+            break;
+        default:
+            break;
+    }
+
+    return str;
+}
+
 /**********************************************************************
  * PROTECTED METHODS: Cell Locate
  **********************************************************************/
+
+// Callback for UULOCIND handling.
+void UbloxCellularDriverGenAtDataExt::UULOCIND_URC()
+{
+    char buf[32];
+    int a, b;
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +UULOCIND: <step>,<result>
+    if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
+        if (sscanf(buf, " %d,%d", &a, &b) == 2) {
+            switch (a) {
+                case 0:
+                    tr_debug("Network scan start");
+                    break;
+                case 1:
+                    tr_debug("Network scan end");
+                    break;
+                case 2:
+                    tr_debug("Requesting data from server");
+                    break;
+                case 3:
+                    tr_debug("Received data from server");
+                    break;
+                case 4:
+                    tr_debug("Sending feedback to server");
+                    break;
+                default:
+                    tr_debug("Unknown step");
+                    break;
+            }
+            switch (b) {
+                case 0:
+                    // No error
+                    break;
+                case 1:
+                    tr_debug("Wrong URL!");
+                    break;
+                case 2:
+                    tr_debug("HTTP error!");
+                    break;
+                case 3:
+                    tr_debug("Create socket error!");
+                    break;
+                case 4:
+                    tr_debug("Close socket error!");
+                    break;
+                case 5:
+                    tr_debug("Write to socket error!");
+                    break;
+                case 6:
+                    tr_debug("Read from socket error!");
+                    break;
+                case 7:
+                    tr_debug("Connection/DNS error!");
+                    break;
+                case 8:
+                    tr_debug("Authentication token problem!");
+                    break;
+                case 9:
+                    tr_debug("Generic error!");
+                    break;
+                case 10:
+                    tr_debug("User terminated!");
+                    break;
+                case 11:
+                    tr_debug("No data from server!");
+                    break;
+                default:
+                    tr_debug("Unknown result!");
+                    break;
+            }
+        }
+    }
+}
 
 // Callback for UULOC URC handling.
 void UbloxCellularDriverGenAtDataExt::UULOC_URC()
@@ -72,9 +179,9 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
     // already in an _at->recv()
 
     // +UHTTPCR: <profile_id>,<op_code>,<param_val>
-    if (read_at_to_newline(urcBuf, sizeof (urcBuf)) > 0) {
+    if (read_at_to_char(urcBuf, sizeof (urcBuf), '\n') > 0) {
         // +UULOC: <date>,<time>,<lat>,<long>,<alt>,<uncertainty>,<speed>, <direction>,<vertical_acc>,<sensor_used>,<SV_used>,<antenna_status>, <jamming_status>
-        if (sscanf(urcBuf, ": %d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%d,%*d,%*d",
+        if (sscanf(urcBuf, " %d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%d,%*d,%*d",
                    &_loc[0].time.tm_mday, &_loc[0].time.tm_mon,
                    &_loc[0].time.tm_year, &_loc[0].time.tm_hour,
                    &_loc[0].time.tm_min, &_loc[0].time.tm_sec,
@@ -92,7 +199,7 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
             _locExpPos=1;
             _locRcvPos++;
         // +UULOC: <sol>,<num>,<sensor_used>,<date>,<time>,<lat>,<long>,<alt>,<uncertainty>,<speed>, <direction>,<vertical_acc>,,<SV_used>,<antenna_status>, <jamming_status>
-        } else if (sscanf(urcBuf, ": %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%*d,%*d",
+        } else if (sscanf(urcBuf, " %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%*d,%*d",
                    &a, &_locExpPos, &b,
                    &_loc[CELL_MAX_HYP - 1].time.tm_mday,
                    &_loc[CELL_MAX_HYP - 1].time.tm_mon,
@@ -122,7 +229,7 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
                 _locRcvPos++;
             }
         //+UULOC: <sol>,<num>,<sensor_used>,<date>,<time>,<lat>,<long>,<alt>,<lat50>,<long50>,<major50>,<minor50>,<orientation50>,<confidence50>[,<lat95>,<long95>,<major95>,<minor95>,<orientation95>,<confidence95>]
-        } else if (sscanf(urcBuf, ": %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%*f,%*f,%d,%*d,%*d,%*d",
+        } else if (sscanf(urcBuf, " %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%*f,%*f,%d,%*d,%*d,%*d",
                    &a, &_locExpPos, &b,
                    &_loc[CELL_MAX_HYP - 1].time.tm_mday,
                    &_loc[CELL_MAX_HYP - 1].time.tm_mon,
@@ -153,7 +260,7 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
 }
 
 /**********************************************************************
- * PUBLIC METHODS: GENERIC
+ * PUBLIC METHODS: GENERAL
  **********************************************************************/
 
 // Constructor.
@@ -177,8 +284,9 @@ UbloxCellularDriverGenAtDataExt::UbloxCellularDriverGenAtDataExt(PinName tx,
     // URC handler for HTTP
     _at->oob("+UUHTTPCR", callback(this, &UbloxCellularDriverGenAtDataExt::UUHTTPCR_URC));
 
-    // URC handler for Cell Locate
-    _at->oob("+ULOC", callback(this, &UbloxCellularDriverGenAtDataExt::UULOC_URC));
+    // URC handlers for Cell Locate
+    _at->oob("+UULOCIND:", callback(this, &UbloxCellularDriverGenAtDataExt::UULOCIND_URC));
+    _at->oob("+UULOC:", callback(this, &UbloxCellularDriverGenAtDataExt::UULOC_URC));
 }
 
 // Destructor.
@@ -191,7 +299,7 @@ UbloxCellularDriverGenAtDataExt::~UbloxCellularDriverGenAtDataExt()
  **********************************************************************/
 
 // Find a free profile.
-int UbloxCellularDriverGenAtDataExt::httpFindProfile()
+int UbloxCellularDriverGenAtDataExt::httpAllocProfile()
 {
     int profile = HTTP_PROF_UNUSED;
     LOCK();
@@ -212,42 +320,10 @@ int UbloxCellularDriverGenAtDataExt::httpFindProfile()
     return profile;
 }
 
-// Set the blocking/timeout state of a profile.
-bool UbloxCellularDriverGenAtDataExt::httpSetBlocking(int profile, int timeout_ms)
-{
-    bool success = false;
-    LOCK();
-
-    tr_debug("httpSetBlocking(%d, %d)", profile, timeout_ms);
-    if (IS_PROFILE(profile)) {
-        _httpProfiles[profile].timeout_ms = timeout_ms;
-        success = true;
-    }
-
-    UNLOCK();
-    return success;
-}
-
-// Set the profile so that it's suitable for commands.
-bool UbloxCellularDriverGenAtDataExt::httpSetProfileForCmdMng(int profile)
-{
-    bool success = false;
-    LOCK();
-
-    tr_debug("httpSetProfileForCmdMng(%d)", profile);
-    if (IS_PROFILE(profile)) {
-        _httpProfiles[profile].pending = true;
-        _httpProfiles[profile].result = -1;
-        success = true;
-    }
-
-    UNLOCK();
-    return success;
-}
-
 // Free a profile.
 bool UbloxCellularDriverGenAtDataExt::httpFreeProfile(int profile)
 {
+    bool success = false;
     LOCK();
 
     if (IS_PROFILE(profile)) {
@@ -257,10 +333,28 @@ bool UbloxCellularDriverGenAtDataExt::httpFreeProfile(int profile)
         _httpProfiles[profile].pending     = false;
         _httpProfiles[profile].cmd         = -1;
         _httpProfiles[profile].result      = -1;
+        success = _at->send("AT+UHTTP=%d", profile) && _at->recv("OK");
     }
 
     UNLOCK();
-    return true;
+    return success;
+}
+
+// Set the blocking/timeout state of a profile.
+bool UbloxCellularDriverGenAtDataExt::httpSetTimeout(int profile, int timeout_ms)
+{
+    bool success = false;
+    LOCK();
+
+    tr_debug("httpSetTimeout(%d, %d)", profile, timeout_ms);
+
+    if (IS_PROFILE(profile)) {
+        _httpProfiles[profile].timeout_ms = timeout_ms;
+        success = true;
+    }
+
+    UNLOCK();
+    return success;
 }
 
 // Set a profile back to defaults.
@@ -284,189 +378,170 @@ bool UbloxCellularDriverGenAtDataExt::httpSetPar(int httpProfile,
     bool success = false;
     int httpInParNum = 0;
     SocketAddress address;
-    LOCK();
 
     tr_debug("httpSetPar(%d, %d, \"%s\")", httpProfile, httpOpCode, httpInPar);
-    switch(httpOpCode) {
-        case HTTP_IP_ADDRESS:   // 0
-            if (gethostbyname(httpInPar, &address) == NSAPI_ERROR_OK) {
-                success = _at->send("AT+UHTTP=%d,%d,\"%s\"",
-                                    httpProfile, httpOpCode, address.get_ip_address()) &&
+    if (IS_PROFILE(httpProfile)) {
+        LOCK();
+
+        switch(httpOpCode) {
+            case HTTP_IP_ADDRESS:   // 0
+                if (gethostbyname(httpInPar, &address) == NSAPI_ERROR_OK) {
+                    success = _at->send("AT+UHTTP=%d,%d,\"%s\"",
+                                        httpProfile, httpOpCode, address.get_ip_address()) &&
+                              _at->recv("OK");
+                }
+                break;
+            case HTTP_SERVER_NAME:  // 1
+            case HTTP_USER_NAME:    // 2
+            case HTTP_PASSWORD:     // 3
+                success = _at->send("AT+UHTTP=%d,%d,\"%s\"", httpProfile, httpOpCode, httpInPar) &&
                           _at->recv("OK");
-            }
-            break;
-        case HTTP_SERVER_NAME:  // 1
-        case HTTP_USER_NAME:    // 2
-        case HTTP_PASSWORD:     // 3
-            success = _at->send("AT+UHTTP=%d,%d,\"%s\"", httpProfile, httpOpCode, httpInPar) &&
-                      _at->recv("OK");
-            break;
+                break;
 
-        case HTTP_AUTH_TYPE:    // 4
-        case HTTP_SERVER_PORT:  // 5
-            httpInParNum = atoi(httpInPar);
-            success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) &&
-                      _at->recv("OK");
-            break;
+            case HTTP_AUTH_TYPE:    // 4
+            case HTTP_SERVER_PORT:  // 5
+                httpInParNum = atoi(httpInPar);
+                success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) &&
+                          _at->recv("OK");
+                break;
 
-        case HTTP_SECURE:       // 6
-            httpInParNum = atoi(httpInPar);
-            success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) &&
-                      _at->recv("OK");
-            break;
+            case HTTP_SECURE:       // 6
+                httpInParNum = atoi(httpInPar);
+                success = _at->send("AT+UHTTP=%d,%d,%d", httpProfile, httpOpCode, httpInParNum) &&
+                          _at->recv("OK");
+                break;
 
-        default:
-            tr_debug("httpSetPar: unknown httpOpCode %d", httpOpCode);
-            break;
+            default:
+                tr_debug("httpSetPar: unknown httpOpCode %d", httpOpCode);
+                break;
+        }
+
+        UNLOCK();
     }
 
-    UNLOCK();
     return success;
 }
 
 // Perform an HTTP command.
 bool UbloxCellularDriverGenAtDataExt::httpCommand(int httpProfile,
-                                                  HttpCmd httpCmdCode,
+                                                  HttpCmd httpCmd,
                                                   const char *httpPath,
-                                                  const char *httpOut,
-                                                  const char *httpIn,
+                                                  const char *rspFile,
+                                                  const char *sendStr,
                                                   int httpContentType,
                                                   const char *httpCustomPar,
                                                   char *buf, int len)
 {
+    bool atSuccess = false;
     bool success = false;
-    LOCK();
+    int at_timeout = _at_timeout;
+    char defaultFilename[] = "http_last_response_x";
 
-    tr_debug("%s", getHttpCmd(httpCmdCode));
-    switch (httpCmdCode) {
-        case HTTP_HEAD:
-            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_HEAD,
-                                httpPath, httpOut) &&
-                      _at->recv("OK");
-            break;
-        case HTTP_GET:
-            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_GET,
-                                httpPath, httpOut) &&
-                      _at->recv("OK");
-            break;
-        case HTTP_DELETE:
-            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, HTTP_DELETE,
-                                httpPath, httpOut) &&
-                      _at->recv("OK");
-            break;
-        case HTTP_PUT:
-            // In this case the parameter httpIn is a filename
-            success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\"", httpProfile, HTTP_PUT,
-                                httpPath, httpOut, httpIn) &&
-                      _at->recv("OK");
-            break;
-        case HTTP_POST_FILE:
-            // In this case the parameter httpIn is a filename
-            if (httpContentType != 6) {
-                success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
-                               httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn,
-                               httpContentType) &&
-                          _at->recv("OK");
-            } else {
-                success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
-                               httpProfile, HTTP_POST_FILE, httpPath, httpOut, httpIn,
-                               httpContentType,
-                               httpCustomPar) &&
-                          _at->recv("OK");
-            }
-            break;
-        case HTTP_POST_DATA:
-            // In this case the parameter httpIn is a string containing data
-            if (httpContentType != 6) {
-                success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
-                               httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn,
-                               httpContentType) &&
-                          _at->recv("OK");
-            } else {
-                success = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
-                               httpProfile, HTTP_POST_DATA, httpPath, httpOut, httpIn,
-                               httpContentType,
-                               httpCustomPar) &&
-                          _at->recv("OK");
-            }
-            break;
-        default:
-            tr_debug("HTTP command not recognised");
-            break;
-    }
+    tr_debug("%s", getHttpCmd(httpCmd));
 
-    if (success) {
-        Timer timer;
+    if (IS_PROFILE(httpProfile)) {
+        LOCK();
 
-        timer.start();
-        httpSetProfileForCmdMng(httpProfile);
+        if (rspFile == NULL) {
+            sprintf(defaultFilename + sizeof (defaultFilename) - 2, "%1d", httpProfile);
+            rspFile = defaultFilename;
+        }
 
-        // Waiting for unsolicited result codes
-        while (_httpProfiles[httpProfile].pending) {
-            success = false;  // Reset variable
-            if (_httpProfiles[httpProfile].result != -1) {
-                // Received unsolicited: starting its analysis
-                _httpProfiles[httpProfile].pending = false;
-                if (_httpProfiles[httpProfile].result == 1) {
-                    // HTTP command successfully executed
-                    tr_debug("httpCommand: reading files with a dimension also greater than MAX_SIZE bytes");
-                    if (readFileNew(httpOut, buf, len) >= 0) {
-                        success = true;
-                    }
+        switch (httpCmd) {
+            case HTTP_HEAD:
+                atSuccess = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, httpCmd,
+                                      httpPath, rspFile) &&
+                            _at->recv("OK");
+                break;
+            case HTTP_GET:
+                atSuccess = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, httpCmd,
+                                      httpPath, rspFile) &&
+                            _at->recv("OK");
+                break;
+            case HTTP_DELETE:
+                atSuccess = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\"", httpProfile, httpCmd,
+                                      httpPath, rspFile) &&
+                            _at->recv("OK");
+                break;
+            case HTTP_PUT:
+                // In this case the parameter sendStr is a filename
+                atSuccess = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\"", httpProfile, httpCmd,
+                                      httpPath, rspFile, sendStr) &&
+                            _at->recv("OK");
+                break;
+            case HTTP_POST_FILE:
+                // In this case the parameter sendStr is a filename
+                if (httpContentType != 6) {
+                    atSuccess = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
+                                          httpProfile, httpCmd, httpPath, rspFile, sendStr,
+                                          httpContentType) &&
+                                _at->recv("OK");
                 } else {
-                    // HTTP command not successfully executed
-                    success = false;
+                    atSuccess = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
+                                          httpProfile, httpCmd, httpPath, rspFile, sendStr,
+                                          httpContentType,
+                                          httpCustomPar) &&
+                                _at->recv("OK");
                 }
-            } else if (!TIMEOUT(timer, _httpProfiles[httpProfile].timeout_ms)) {
-                // Wait for URCs
-                wait_ms (1000);
-            } else  {
-                // Not received unsolicited and expired timer
-                tr_debug("httpCommand: URC not received in time");
-                success = false;
+                break;
+            case HTTP_POST_DATA:
+                // In this case the parameter sendStr is a string containing data
+                if (httpContentType != 6) {
+                    atSuccess = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d",
+                                          httpProfile, httpCmd, httpPath, rspFile, sendStr,
+                                          httpContentType) &&
+                                _at->recv("OK");
+                } else {
+                    atSuccess = _at->send("AT+UHTTPC=%d,%d,\"%s\",\"%s\",\"%s\",%d,%s",
+                                          httpProfile, httpCmd, httpPath, rspFile, sendStr,
+                                          httpContentType,
+                                          httpCustomPar) &&
+                                _at->recv("OK");
+                }
+                break;
+            default:
+                tr_debug("HTTP command not recognised");
+                break;
+        }
+
+        if (atSuccess) {
+            Timer timer;
+
+            at_set_timeout(1000);
+            _httpProfiles[httpProfile].pending = true;
+            _httpProfiles[httpProfile].result = -1;
+
+            // Waiting for unsolicited result code
+            while (_httpProfiles[httpProfile].pending) {
+                if (_httpProfiles[httpProfile].result != -1) {
+                    // Received unsolicited: starting its analysis
+                    _httpProfiles[httpProfile].pending = false;
+                    if (_httpProfiles[httpProfile].result == 1) {
+                        // HTTP command successfully executed
+                        if (readFile(rspFile, buf, len) >= 0) {
+                            success = true;
+                        }
+                    }
+                } else if (!TIMEOUT(timer, _httpProfiles[httpProfile].timeout_ms)) {
+                    // Wait for URCs
+                    _at->recv(UNNATURAL_STRING);
+                } else  {
+                    _httpProfiles[httpProfile].pending = false;
+                }
             }
+
+            at_set_timeout(at_timeout);
 
             if (!success) {
-                tr_debug("%s: ERROR", getHttpCmd(httpCmdCode));
-                // No more while loops
-                _httpProfiles[httpProfile].pending = false;
+                tr_debug("%s: ERROR", getHttpCmd(httpCmd));
             }
+
         }
+
+        UNLOCK();
     }
 
-    UNLOCK();
     return success;
-}
-
-// Return a string representing an AT command.
-const char * UbloxCellularDriverGenAtDataExt::getHttpCmd(int httpCmdCode)
-{
-    const char * str = "HTTP command not recognised";
-
-    switch (httpCmdCode) {
-        case HTTP_HEAD:
-            str = "HTTP HEAD command";
-            break;
-        case HTTP_GET:
-            str = "HTTP GET command";
-            break;
-        case HTTP_DELETE:
-            str = "HTTP DELETE command";
-            break;
-        case HTTP_PUT:
-            str = "HTTP PUT command";
-            break;
-        case HTTP_POST_FILE:
-            str = "HTTP POST file command";
-            break;
-        case HTTP_POST_DATA:
-            str = "HTTP POST data command";
-            break;
-        default:
-            break;
-    }
-
-    return str;
 }
 
 /**********************************************************************
@@ -511,31 +586,14 @@ bool UbloxCellularDriverGenAtDataExt::cellLocSrvUdp(const char* server_1,
     return success;
 }
 
-// Configure CellLocate URCs in the case of +ULOC operations.
-bool UbloxCellularDriverGenAtDataExt::cellLocUnsol(int mode)
-{
-    bool success = false;
-    LOCK();
-
-    if (_dev_info.dev == DEV_LISA_U2_03S) {
-        success = _at->send("AT+ULOCIND=%d", mode) &&
-                  _at->recv("OK");
-    }
-
-    UNLOCK();
-    return success;
-}
-
 // Configure Cell Locate location sensor.
 bool UbloxCellularDriverGenAtDataExt::cellLocConfig(int scanMode)
 {
-    bool success = false;
+    bool success;
     LOCK();
 
-    if (_dev_info.dev != DEV_TOBY_L2) {
-        success = _at->send("AT+ULOCCELL=%d", scanMode) &&
-                  _at->recv("OK");
-    }
+    success = _at->send("AT+ULOCCELL=%d", scanMode) &&
+              _at->recv("OK");
 
     UNLOCK();
     return success;
@@ -562,12 +620,10 @@ bool UbloxCellularDriverGenAtDataExt::cellLocRequest(CellSensType sensor,
             _loc[i].validData = false;
         }
 
-        if (_dev_info.dev == DEV_LISA_U2_03S) {
+        // Switch on the URC
+        if (_at->send("AT+ULOCIND=1") && _at->recv("OK")) {
+            // Switch on Cell Locate
             success = _at->send("AT+ULOC=2,%d,%d,%d,%d,%d", sensor, type, timeout, accuracy, hypothesis) &&
-                      _at->recv("OK");
-            // Answers are picked up by the URC
-        } else if (_dev_info.dev != DEV_TOBY_L2) {
-            success = _at->send("AT+ULOC=2,%d,1,%d,%d",  sensor, timeout, accuracy) &&
                       _at->recv("OK");
             // Answers are picked up by the URC
         }
@@ -596,6 +652,13 @@ bool UbloxCellularDriverGenAtDataExt::cellLocGetData(CellLocData *data, int inde
 // Get number of position records received.
 int UbloxCellularDriverGenAtDataExt::cellLocGetRes()
 {
+    int at_timeout = _at_timeout;
+
+    at_set_timeout(1000);
+    // Wait for URCs
+    _at->recv(UNNATURAL_STRING);
+    at_set_timeout(at_timeout);
+
     return _locRcvPos;
 }
 
