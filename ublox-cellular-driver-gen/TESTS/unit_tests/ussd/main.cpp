@@ -19,8 +19,8 @@ using namespace utest::v1;
 //
 //{
 //    "config": {
-//        "apn": {
-//            "value": "\"my_apn\""
+//        "default-pin": {
+//            "value": "\"my_pin\""
 //        }
 //}
 
@@ -29,17 +29,6 @@ using namespace utest::v1;
 // Note: this is the PIN for the SIM with ICCID
 // 8944501104169548380.
 # define MBED_CONF_APP_DEFAULT_PIN "5134"
-#endif
-
-// Network credentials.
-#ifndef MBED_CONF_APP_APN
-# define MBED_CONF_APP_APN         NULL
-#endif
-#ifndef MBED_CONF_APP_USERNAME
-# define MBED_CONF_APP_USERNAME    NULL
-#endif
-#ifndef MBED_CONF_APP_PASSWORD
-# define MBED_CONF_APP_PASSWORD    NULL
 #endif
 
 // http://www.geckobeach.com/cellular/secrets/gsmcodes.php
@@ -195,7 +184,7 @@ void test_ussd() {
 // Setup the test environment
 utest::v1::status_t test_setup(const size_t number_of_cases) {
     // Setup Greentea with a timeout
-    GREENTEA_SETUP(540, "default_auto");
+    GREENTEA_SETUP(180, "default_auto");
     return verbose_test_setup_handler(number_of_cases);
 }
 

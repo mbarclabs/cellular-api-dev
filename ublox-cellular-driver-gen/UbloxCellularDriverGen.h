@@ -35,34 +35,40 @@ public:
      * PUBLIC: Short Message Service
      **********************************************************************/
     
+    /** The size of an SMS storage buffer, including null terminator.
+     */
+    #define SMS_BUFFER_SIZE 145
+
     /** Count the number of messages in the device and optionally return a
      * list with indexes from the storage locations in the device.
      *
-     * Note: init() should be called before using this command.
+     * Note: init() should be called before this method can be used.
      *
      * @param stat  what type of messages you can use:
      *              "REC UNREAD", "REC READ", "STO UNSENT", "STO SENT", "ALL".
-     * @param index list where to save the storage positions.
-     * @param num   number of elements in the list.
-     * @return      the number of messages, this can be bigger than num, -1 on failure.
+     * @param index list where to save the storage positions (pointer
+     *              to an array of ints).
+     * @param num   number of elements that can be stored in the list.
+     * @return      the number of messages, this can be bigger than num,
+     *              -1 on failure.
      */
     int smsList(const char* stat = "ALL", int* index = NULL, int num = 0);
     
     /** Read a message from a storage position.
      *
-     * Note: init() should be called before using this command.
+     * Note: init() should be called before this method can be used.
      *
-     * @param ix  the storage position to read.
-     * @param num the originator address (~16 chars).
-     * @param buf a buffer where to save the sm.
-     * @param len the length of the sm.
-     * @return    true if successful, false otherwise.
+     * @param index  the storage position to read.
+     * @param num    the originator address (16 chars including terminator).
+     * @param buf    a buffer where to save the short message.
+     * @param len    the length of buf.
+     * @return       true if successful, false otherwise.
      */
-    bool smsRead(int ix, char* num, char* buf, int len);
+    bool smsRead(int index, char* num, char* buf, int len);
     
     /** Delete a message.
      *
-     * Note: init() should be called before using this command.
+     * Note: init() should be called before this method can be used.
      *
      * @param index the storage position to delete.
      * @return true if successful, false otherwise.
@@ -72,10 +78,11 @@ public:
     /** Send a message to a recipient.
      *
      * Note: init() and nwk_registration() should be called before
-     * using this command.
+     * this method can be used.
      *
-     * @param num the phone number of the recipient.
-     * @param buf the content of the message to sent.
+     * @param num the phone number of the recipient as a null terminated
+     *            string.  Note: no spaces are allowed in this string.
+     * @param buf the content of the message to sent, null terminated.
      * @return    true if successful, false otherwise.
      */
     bool smsSend(const char* num, const char* buf);
@@ -90,9 +97,9 @@ public:
 
     /** Make a USSD query.
      *
-     * Note: init() should be called before using this command and,
-     * in many cases, nwk_registration() is also required as the USSD
-     * command may need network access.
+     * Note: init() should be called before using this method can be
+     * used and, in many cases, nwk_registration() is also required as
+     * the USSD may need network access.
      *
      * Note: some USSD commands relate to call waiting, call forwarding,
      * etc., which can result in multiple responses.  This function returns
@@ -102,7 +109,7 @@ public:
      * parse for them specifically and, probably, use specific AT commands
      * rather than USSD.
      *
-     * @param cmd the ussd command to send e.g "*#100#".
+     * @param cmd the USSD string to send e.g "*#100#".
      * @param buf a buffer where to save the reply, which
      *            will always be returned zero terminated.
      * @param len the length of buf, set to USSD_STRING_LENGTH + 1 to
@@ -118,7 +125,7 @@ public:
     /** Delete a file from the module's local file system.  An attempt
      * to delete a non-existent file will fail.
      *
-     * Note: init() should be called before using this command.
+     * Note: init() should be called before this method can be used.
      *
      * @param filename the name of the file.
      * @return         true if successful, false otherwise.
@@ -127,7 +134,7 @@ public:
     
     /** Write some data to a file in the module's local file system.
      *
-     * Note: init() should be called before using this command.
+     * Note: init() should be called before this method can be used.
      *
      * @param  filename the name of the file.
      * @param  buf the data to write.
@@ -138,7 +145,7 @@ public:
     
     /** Read a file from the module's local file system.
      *
-     * Note: init() should be called before using this command.
+     * Note: init() should be called before this method can be used.
      *
      * @param  filename the name of the file
      * @param  buf a buffer to hold the data
@@ -149,7 +156,7 @@ public:
     
     /** Retrieve the file size from the module's local file system.
      *
-     * Note: init() should be called before using this command.
+     * Note: init() should be called before this method can be used.
      *
      * @param  filename the name of the file.
      * @return the file size in bytes.
@@ -162,9 +169,13 @@ protected:
      * PROTECTED: Short Message Service
      **********************************************************************/
 
-    /** An SMS storage buffer
+    /** The number type for telephone numbers without a + on the front
      */
-    #define SMS_BUFFER_SIZE 144
+    #define TYPE_OF_ADDRESS_NATIONAL 129
+
+    /** The number type for telephone numbers with a + on the front
+     */
+    #define TYPE_OF_ADDRESS_INTERNATIONAL 145
 
     /** Convert a #define to a string
      */
@@ -173,11 +184,15 @@ protected:
 
     /** Place to store the index of an SMS message.
      */
-    int *_smsIndex;
+    int *_userSmsIndex;
 
-    /** Place to store the number of SMS message stored in the module.
+    /** The number of SMS message being returned to the user.
      */
-    int _smsNum;
+    int _userSmsNum;
+
+    /** The number of SMS messages stored in the module.
+     */
+    int _smsCount;
 
     /** URC for Short Message listing.
      */

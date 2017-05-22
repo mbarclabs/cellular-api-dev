@@ -37,11 +37,13 @@ void UbloxCellularDriverGen::CMGL_URC()
     // Note: not calling _at->recv() from here as we're
     // already in an _at->recv()
     // +CMGL: <ix>,...
-    if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
-        if ((_smsIndex != NULL) && (_smsNum > 0)) {
-            if (sscanf(buf, ": %d,", &index) == 1) {
-                *_smsIndex++ = index;
-                _smsNum--;
+    if (read_at_to_char(buf, sizeof(buf), '\n') > 0) {
+        if (sscanf(buf, ": %d,", &index) == 1) {
+            _smsCount++;
+            if ((_userSmsIndex != NULL) && (_userSmsNum > 0)) {
+                *_userSmsIndex = index;
+                _userSmsIndex++;
+                _userSmsNum--;
             }
         }
     }
@@ -80,7 +82,7 @@ void UbloxCellularDriverGen::CMT_URC()
     // Note: not calling _at->recv() from here as we're
     // already in an _at->recv()
     if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
-        if (sscanf(buf, ": %49[^\"]\",,%14[^\"]\"", text, serviceTimestamp) == 2) {
+        if (sscanf(buf, ": \"%49[^\"]\",,%14[^\"]\"", text, serviceTimestamp) == 2) {
             tr_debug("SMS: %s, %s", serviceTimestamp, text);
         }
     }
@@ -410,8 +412,9 @@ void UbloxCellularDriverGen::COLR_URC()
 UbloxCellularDriverGen::UbloxCellularDriverGen(PinName tx, PinName rx,
                                                int baud, bool debug_on)
 {
-    _smsIndex = NULL;
-    _smsNum = 0;
+    _userSmsIndex = NULL;
+    _userSmsNum = 0;
+    _smsCount = 0;
     _ssUrcBuf = NULL;
 
     // Initialise the base class, which starts the AT parser
@@ -447,16 +450,17 @@ int UbloxCellularDriverGen::smsList(const char* stat, int* index, int num)
     int numMessages = -1;
     LOCK();
 
-    _smsIndex = index;
-    _smsNum = num;
+    _userSmsIndex = index;
+    _userSmsNum = num;
+    _smsCount = 0;
     // There is a callback to capture the result
     // +CMGL: <ix>,...
-    if (_at->send("AT+CMGL=\"%s\"\r\n", stat) && _at->recv("OK")) {
-        numMessages = num - _smsNum;
+    if (_at->send("AT+CMGL=\"%s\"", stat) && _at->recv("OK")) {
+        numMessages = _smsCount;
     }
 
     // Set this back to null so that the URC won't trample
-    _smsIndex = NULL;
+    _userSmsIndex = NULL;
 
     UNLOCK();
     return numMessages;
@@ -466,11 +470,15 @@ int UbloxCellularDriverGen::smsList(const char* stat, int* index, int num)
 bool UbloxCellularDriverGen::smsSend(const char* num, const char* buf)
 {
     bool success = false;
+    char typeOfAddress = TYPE_OF_ADDRESS_NATIONAL;
     LOCK();
 
-    if (_at->send("AT+CMGS=\"%s\"",num) && _at->recv("@")) {
+    if ((strlen (num) > 0) && (*(num) == '+')) {
+        typeOfAddress = TYPE_OF_ADDRESS_INTERNATIONAL;
+    }
+    if (_at->send("AT+CMGS=\"%s\",%d", num, typeOfAddress) && _at->recv(">")) {
         if ((_at->write(buf, (int) strlen(buf)) >= (int) strlen(buf)) &&
-            (_at->putc(0x1A) == 0x1A) &&  // CTRL-Z
+            (_at->putc(0x1A) == 0) &&  // CTRL-Z
             _at->recv("OK")) {
             success = true;
         }
@@ -500,20 +508,26 @@ bool UbloxCellularDriverGen::smsRead(int index, char* num, char* buf, int len)
     LOCK();
 
     if (len > 0) {
-        tmpBuf = (char *) malloc(SMS_BUFFER_SIZE + 1); // +1 to allow for newline
-        if ((tmpBuf != NULL) &&
-            _at->send("AT+CMGR=%d", index) &&
-            _at->recv("+CMGR: \"%*[^\"]\",\"%[^\"]", num) &&
-            _at->recv("%" stringify(SMS_BUFFER_SIZE) "[^\n]\n", tmpBuf)) {
-            endOfString = strchr(tmpBuf, '\n');
-            if (endOfString != NULL) {
-                smsReadLength = endOfString - tmpBuf;
-                if (smsReadLength + 1 > len) { // +1 for terminator
-                    smsReadLength = len - 1;
+        tmpBuf = (char *) malloc(SMS_BUFFER_SIZE);
+        //+CMGR: "REC READ", "+393488535999",,"07/04/05,18:02:28+08",145,4,0,0,"+393492000466",145,93
+        // The text of the message.
+        // OK
+        if (tmpBuf != NULL) {
+            memset (tmpBuf, 0, sizeof (SMS_BUFFER_SIZE)); // Ensure terminator
+            if (_at->send("AT+CMGR=%d", index) &&
+                _at->recv("+CMGR: \"%*[^\"]\",\"%15[^\"]\"%*[^\n]\n", num) &&
+                _at->recv("%" stringify(SMS_BUFFER_SIZE) "[^\n]\n", tmpBuf) &&
+                _at->recv("OK")) {
+                endOfString = strchr(tmpBuf, 0);
+                if (endOfString != NULL) {
+                    smsReadLength = endOfString - tmpBuf;
+                    if (smsReadLength + 1 > len) { // +1 for terminator
+                        smsReadLength = len - 1;
+                    }
+                    memcpy(buf, tmpBuf, smsReadLength);
+                    *(buf + smsReadLength) = 0; // Add terminator
+                    success = true;
                 }
-                memcpy(buf, tmpBuf, smsReadLength);
-                *(buf + smsReadLength)  = '\0'; // Add terminator
-                success = true;
             }
         }
         free (tmpBuf);
