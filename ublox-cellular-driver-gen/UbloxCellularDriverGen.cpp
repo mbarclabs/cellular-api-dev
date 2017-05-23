@@ -58,7 +58,7 @@ void UbloxCellularDriverGen::CMTI_URC()
     // already in an _at->recv()
     if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
         // No need to parse, any content is good
-        debug_if(_debug_trace_on, "New SMS received\n");
+        tr_info("New SMS received");
     }
 }
 
@@ -83,7 +83,7 @@ void UbloxCellularDriverGen::CMT_URC()
     // already in an _at->recv()
     if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
         if (sscanf(buf, ": \"%49[^\"]\",,%14[^\"]\"", text, serviceTimestamp) == 2) {
-            debug_if(_debug_trace_on, "SMS: %s, %s\n", serviceTimestamp, text);
+            tr_info("SMS: %s, %s", serviceTimestamp, text);
         }
     }
 }
