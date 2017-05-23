@@ -19,7 +19,7 @@
 #include "mbed_trace.h"
 #define TRACE_GROUP "UCID"
 #else
-#define tr_debug(...) (void(0)) // dummies if feature common pal is not added
+#define debug_if(_debug_trace_on, ...) (void(0)) // dummies if feature common pal is not added
 #define tr_info(...)  (void(0)) // dummies if feature common pal is not added
 #define tr_error(...) (void(0)) // dummies if feature common pal is not added
 #endif
@@ -58,7 +58,7 @@ void UbloxCellularDriverGen::CMTI_URC()
     // already in an _at->recv()
     if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
         // No need to parse, any content is good
-        tr_debug("New SMS received");
+        debug_if(_debug_trace_on, "New SMS received\n");
     }
 }
 
@@ -83,7 +83,7 @@ void UbloxCellularDriverGen::CMT_URC()
     // already in an _at->recv()
     if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
         if (sscanf(buf, ": \"%49[^\"]\",,%14[^\"]\"", text, serviceTimestamp) == 2) {
-            tr_debug("SMS: %s, %s", serviceTimestamp, text);
+            debug_if(_debug_trace_on, "SMS: %s, %s\n", serviceTimestamp, text);
         }
     }
 }
@@ -113,34 +113,34 @@ void UbloxCellularDriverGen::CCWA_URC()
                     memcpy (_ssUrcBuf + 5, buf, numChars);
                     *(_ssUrcBuf + numChars + 5) = 0;
                     if (a > 0) {
-                        tr_debug("Calling Waiting is active");
+                        debug_if(_debug_trace_on, "Calling Waiting is active");
                     } else {
-                        tr_debug("Calling Waiting is not active");
+                        debug_if(_debug_trace_on, "Calling Waiting is not active");
                     }
                     if (b > 0) {
                         if (b & 0x01) {
-                            tr_debug(" for voice");
+                            debug_if(_debug_trace_on, " for voice\n");
                         }
                         if (b & 0x02) {
-                            tr_debug(" for data");
+                            debug_if(_debug_trace_on, " for data\n");
                         }
                         if (b & 0x04) {
-                            tr_debug(" for fax");
+                            debug_if(_debug_trace_on, " for fax\n");
                         }
                         if (b & 0x08) {
-                            tr_debug(" for SMS");
+                            debug_if(_debug_trace_on, " for SMS\n");
                         }
                         if (b & 0x10) {
-                            tr_debug(" for data circuit sync");
+                            debug_if(_debug_trace_on, " for data circuit sync\n");
                         }
                         if (b & 0x20) {
-                            tr_debug(" for data circuit async");
+                            debug_if(_debug_trace_on, " for data circuit async\n");
                         }
                         if (b & 0x40) {
-                            tr_debug(" for dedicated packet access");
+                            debug_if(_debug_trace_on, " for dedicated packet access\n");
                         }
                         if (b & 0x80) {
-                            tr_debug(" for dedicated PAD access");
+                            debug_if(_debug_trace_on, " for dedicated PAD access\n");
                         }
                     }
                 }
@@ -173,40 +173,42 @@ void UbloxCellularDriverGen::CCFC_URC()
                     memcpy (_ssUrcBuf + 5, buf, numChars);
                     *(_ssUrcBuf + numChars + 5) = 0;
                     if (a > 0) {
-                        tr_debug("Calling Forwarding is active");
+                        debug_if(_debug_trace_on, "Calling Forwarding is active ");
                     } else {
-                        tr_debug("Calling Forwarding is not active");
+                        debug_if(_debug_trace_on, "Calling Forwarding is not active ");
                     }
                     if (numValues > 1) {
                         if (b > 0) {
                             if (b & 0x01) {
-                                tr_debug(" for voice");
+                                debug_if(_debug_trace_on, " for voice");
                             }
                             if (b & 0x02) {
-                                tr_debug(" for data");
+                                debug_if(_debug_trace_on, " for data");
                             }
                             if (b & 0x04) {
-                                tr_debug(" for fax");
+                                debug_if(_debug_trace_on, " for fax");
                             }
                             if (b & 0x08) {
-                                tr_debug(" for SMS");
+                                debug_if(_debug_trace_on, " for SMS");
                             }
                             if (b & 0x10) {
-                                tr_debug(" for data circuit sync");
+                                debug_if(_debug_trace_on, " for data circuit sync");
                             }
                             if (b & 0x20) {
-                                tr_debug(" for data circuit async");
+                                debug_if(_debug_trace_on, " for data circuit async");
                             }
                             if (b & 0x40) {
-                                tr_debug(" for dedicated packet access");
+                                debug_if(_debug_trace_on, " for dedicated packet access");
                             }
                             if (b & 0x80) {
-                                tr_debug(" for dedicated PAD access");
+                                debug_if(_debug_trace_on, " for dedicated PAD access");
                             }
                         }
                     }
                     if (numValues > 2) {
-                        tr_debug(" for %s", num);
+                        debug_if(_debug_trace_on, " for %s\n", num);
+                    } else {
+                        debug_if(_debug_trace_on, "\n");
                     }
                 }
             }
@@ -238,31 +240,31 @@ void UbloxCellularDriverGen::CLIR_URC()
                     *(_ssUrcBuf + numChars + 5) = 0;
                     switch (a) {
                         case 0:
-                            tr_debug("Calling Line ID restriction is as subscribed");
+                            debug_if(_debug_trace_on, "Calling Line ID restriction is as subscribed\n");
                             break;
                         case 1:
-                            tr_debug("Calling Line ID invocation");
+                            debug_if(_debug_trace_on, "Calling Line ID invocation ");
                             break;
                         case 2:
-                            tr_debug("Calling Line ID suppression");
+                            debug_if(_debug_trace_on, "Calling Line ID suppression ");
                             break;
                     }
                     if (numValues > 2) {
                         switch (b) {
                             case 0:
-                                tr_debug(" is not provisioned");
+                                debug_if(_debug_trace_on, " is not provisioned\n");
                                 break;
                             case 1:
-                                tr_debug(" is provisioned permanently");
+                                debug_if(_debug_trace_on, " is provisioned permanently\n");
                                 break;
                             case 2:
-                                tr_debug(" is unknown");
+                                debug_if(_debug_trace_on, " is unknown\n");
                                 break;
                             case 3:
-                                tr_debug(" is in temporary mode, presentation restricted");
+                                debug_if(_debug_trace_on, " is in temporary mode, presentation restricted\n");
                                 break;
                             case 4:
-                                tr_debug(" is in temporary mode, presentation allowed");
+                                debug_if(_debug_trace_on, " is in temporary mode, presentation allowed\n");
                                 break;
                         }
                     }
@@ -295,22 +297,22 @@ void UbloxCellularDriverGen::CLIP_URC()
                     *(_ssUrcBuf + numChars + 5) = 0;
                     switch (a) {
                         case 0:
-                            tr_debug("Calling Line ID disable");
+                            debug_if(_debug_trace_on, "Calling Line ID disable ");
                             break;
                         case 1:
-                            tr_debug("Calling Line ID enable");
+                            debug_if(_debug_trace_on, "Calling Line ID enable ");
                             break;
                     }
                     if (numValues > 1) {
                         switch (b) {
                             case 0:
-                                tr_debug(" is not provisioned");
+                                debug_if(_debug_trace_on, " is not provisioned\n");
                                 break;
                             case 1:
-                                tr_debug(" is provisioned");
+                                debug_if(_debug_trace_on, " is provisioned\n");
                                 break;
                             case 2:
-                                tr_debug(" is unknown");
+                                debug_if(_debug_trace_on, " is unknown\n");
                                 break;
                         }
                     }
@@ -343,22 +345,22 @@ void UbloxCellularDriverGen::COLP_URC()
                     *(_ssUrcBuf + numChars + 5) = 0;
                     switch (a) {
                         case 0:
-                            tr_debug("Connected Line ID disable");
+                            debug_if(_debug_trace_on, "Connected Line ID disable ");
                             break;
                         case 1:
-                            tr_debug("Connected Line ID enable");
+                            debug_if(_debug_trace_on, "Connected Line ID enable ");
                             break;
                     }
                     if (numValues > 1) {
                         switch (b) {
                             case 0:
-                                tr_debug(" is not provisioned");
+                                debug_if(_debug_trace_on, " is not provisioned\n");
                                 break;
                             case 1:
-                                tr_debug(" is provisioned");
+                                debug_if(_debug_trace_on, " is provisioned\n");
                                 break;
                             case 2:
-                                tr_debug(" is unknown");
+                                debug_if(_debug_trace_on, " is unknown\n");
                                 break;
                         }
                     }
@@ -389,13 +391,13 @@ void UbloxCellularDriverGen::COLR_URC()
                     *(_ssUrcBuf + numChars + 5) = 0;
                     switch (a) {
                         case 0:
-                            tr_debug("Connected Line ID restriction is not provisioned");
+                            debug_if(_debug_trace_on, "Connected Line ID restriction is not provisioned\n");
                             break;
                         case 1:
-                            tr_debug("Connected Line ID restriction is provisioned");
+                            debug_if(_debug_trace_on, "Connected Line ID restriction is provisioned\n");
                             break;
                         case 2:
-                            tr_debug("Connected Line ID restriction is unknown");
+                            debug_if(_debug_trace_on, "Connected Line ID restriction is unknown\n");
                             break;
                     }
                 }
@@ -653,7 +655,7 @@ int UbloxCellularDriverGen::readFile(const char* filename, char* buf, int len)
     int sz;
     bool success = true;
 
-    tr_debug("readFile: filename is %s; size is %d", filename, bytesToRead);
+    debug_if(_debug_trace_on, "readFile: filename is %s; size is %d\n", filename, bytesToRead);
 
     if (bytesToRead > 0)
     {

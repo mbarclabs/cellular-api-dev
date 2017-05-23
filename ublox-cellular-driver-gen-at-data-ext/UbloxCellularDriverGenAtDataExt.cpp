@@ -19,7 +19,7 @@
 #include "mbed_trace.h"
 #define TRACE_GROUP "UCAD"
 #else
-#define tr_debug(...) (void(0)) // dummies if feature common pal is not added
+#define debug_if(_debug_trace_on, ...) (void(0)) // dummies if feature common pal is not added
 #define tr_info(...)  (void(0)) // dummies if feature common pal is not added
 #define tr_error(...) (void(0)) // dummies if feature common pal is not added
 #endif
@@ -41,7 +41,7 @@ void UbloxCellularDriverGenAtDataExt::UUHTTPCR_URC()
         if (sscanf(buf, ": %d,%d,%d", &a, &b, &c) == 3) {
             _httpProfiles[a].cmd = b;          // Command
             _httpProfiles[a].result = c;       // Result
-            tr_debug("%s on profile %d, result code is %d", getHttpCmd((HttpCmd) b), a, c);
+            debug_if(_debug_trace_on, "%s on profile %d, result code is %d\n", getHttpCmd((HttpCmd) b), a, c);
         }
     }
 }
@@ -107,22 +107,22 @@ void UbloxCellularDriverGenAtDataExt::UULOCIND_URC()
         if (sscanf(buf, " %d,%d", &a, &b) == 2) {
             switch (a) {
                 case 0:
-                    tr_debug("Network scan start");
+                    debug_if(_debug_trace_on, "Network scan start\n");
                     break;
                 case 1:
-                    tr_debug("Network scan end");
+                    debug_if(_debug_trace_on, "Network scan end\n");
                     break;
                 case 2:
-                    tr_debug("Requesting data from server");
+                    debug_if(_debug_trace_on, "Requesting data from server\n");
                     break;
                 case 3:
-                    tr_debug("Received data from server");
+                    debug_if(_debug_trace_on, "Received data from server\n");
                     break;
                 case 4:
-                    tr_debug("Sending feedback to server");
+                    debug_if(_debug_trace_on, "Sending feedback to server\n");
                     break;
                 default:
-                    tr_debug("Unknown step");
+                    debug_if(_debug_trace_on, "Unknown step\n");
                     break;
             }
             switch (b) {
@@ -130,40 +130,40 @@ void UbloxCellularDriverGenAtDataExt::UULOCIND_URC()
                     // No error
                     break;
                 case 1:
-                    tr_debug("Wrong URL!");
+                    debug_if(_debug_trace_on, "Wrong URL!\n");
                     break;
                 case 2:
-                    tr_debug("HTTP error!");
+                    debug_if(_debug_trace_on, "HTTP error!\n");
                     break;
                 case 3:
-                    tr_debug("Create socket error!");
+                    debug_if(_debug_trace_on, "Create socket error!\n");
                     break;
                 case 4:
-                    tr_debug("Close socket error!");
+                    debug_if(_debug_trace_on, "Close socket error!\n");
                     break;
                 case 5:
-                    tr_debug("Write to socket error!");
+                    debug_if(_debug_trace_on, "Write to socket error!\n");
                     break;
                 case 6:
-                    tr_debug("Read from socket error!");
+                    debug_if(_debug_trace_on, "Read from socket error!\n");
                     break;
                 case 7:
-                    tr_debug("Connection/DNS error!");
+                    debug_if(_debug_trace_on, "Connection/DNS error!\n");
                     break;
                 case 8:
-                    tr_debug("Authentication token problem!");
+                    debug_if(_debug_trace_on, "Authentication token problem!\n");
                     break;
                 case 9:
-                    tr_debug("Generic error!");
+                    debug_if(_debug_trace_on, "Generic error!\n");
                     break;
                 case 10:
-                    tr_debug("User terminated!");
+                    debug_if(_debug_trace_on, "User terminated!\n");
                     break;
                 case 11:
-                    tr_debug("No data from server!");
+                    debug_if(_debug_trace_on, "No data from server!\n");
                     break;
                 default:
-                    tr_debug("Unknown result!");
+                    debug_if(_debug_trace_on, "Unknown result!\n");
                     break;
             }
         }
@@ -189,7 +189,7 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
                    &_loc[0].uncertainty, &_loc[0].speed, &_loc[0].direction,
                    &_loc[0].verticalAcc,
                    &b, &_loc[0].svUsed) == 15) {
-            tr_debug ("Position found at index 0");
+            debug_if(_debug_trace_on, "Position found at index 0\n");
             _loc[0].sensor = (b == 0) ? CELL_LAST : (b == 1) ? CELL_GNSS :
                              (b == 2) ? CELL_LOCATE : (b == 3) ? CELL_HYBRID : CELL_LAST;
             _loc[0].time.tm_mon -= 1;
@@ -216,7 +216,7 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
                    &_loc[CELL_MAX_HYP - 1].verticalAcc,
                    &_loc[CELL_MAX_HYP - 1].svUsed) == 17) {
             if (--a >= 0) {
-                tr_debug ("Position found at index %d", a);
+                debug_if(_debug_trace_on, "Position found at index %d\n", a);
 
                 memcpy(&_loc[a], &_loc[CELL_MAX_HYP - 1], sizeof(*_loc));
 
@@ -243,7 +243,7 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
                    &_loc[CELL_MAX_HYP - 1].uncertainty) == 13) {
             if (--a >= 0) {
 
-                tr_debug ("Position found at index %d", a);
+                debug_if(_debug_trace_on, "Position found at index %d\n", a);
 
                 memcpy(&_loc[a], &_loc[CELL_MAX_HYP - 1], sizeof(*_loc));
 
@@ -306,7 +306,7 @@ int UbloxCellularDriverGenAtDataExt::httpAllocProfile()
 
     // Find a free HTTP profile
     profile = findProfile();
-    tr_debug("httpFindProfile: profile is %d", profile);
+    debug_if(_debug_trace_on, "httpFindProfile: profile is %d\n", profile);
 
     if (profile != HTTP_PROF_UNUSED) {
         _httpProfiles[profile].modemHandle = 1;
@@ -327,7 +327,7 @@ bool UbloxCellularDriverGenAtDataExt::httpFreeProfile(int profile)
     LOCK();
 
     if (IS_PROFILE(profile)) {
-        tr_debug("httpFreeProfile(%d)", profile);
+        debug_if(_debug_trace_on, "httpFreeProfile(%d)\n", profile);
         _httpProfiles[profile].modemHandle = HTTP_PROF_UNUSED;
         _httpProfiles[profile].timeout_ms  = TIMEOUT_BLOCKING;
         _httpProfiles[profile].pending     = false;
@@ -346,7 +346,7 @@ bool UbloxCellularDriverGenAtDataExt::httpSetTimeout(int profile, int timeout_ms
     bool success = false;
     LOCK();
 
-    tr_debug("httpSetTimeout(%d, %d)", profile, timeout_ms);
+    debug_if(_debug_trace_on, "httpSetTimeout(%d, %d)\n", profile, timeout_ms);
 
     if (IS_PROFILE(profile)) {
         _httpProfiles[profile].timeout_ms = timeout_ms;
@@ -363,7 +363,7 @@ bool UbloxCellularDriverGenAtDataExt::httpResetProfile(int httpProfile)
     bool success = false;
     LOCK();
 
-    tr_debug("httpResetProfile(%d)", httpProfile);
+    debug_if(_debug_trace_on, "httpResetProfile(%d)\n", httpProfile);
     success = _at->send("AT+UHTTP=%d", httpProfile) && _at->recv("OK");
 
     UNLOCK();
@@ -379,7 +379,7 @@ bool UbloxCellularDriverGenAtDataExt::httpSetPar(int httpProfile,
     int httpInParNum = 0;
     SocketAddress address;
 
-    tr_debug("httpSetPar(%d, %d, \"%s\")", httpProfile, httpOpCode, httpInPar);
+    debug_if(_debug_trace_on, "httpSetPar(%d, %d, \"%s\")\n", httpProfile, httpOpCode, httpInPar);
     if (IS_PROFILE(httpProfile)) {
         LOCK();
 
@@ -412,7 +412,7 @@ bool UbloxCellularDriverGenAtDataExt::httpSetPar(int httpProfile,
                 break;
 
             default:
-                tr_debug("httpSetPar: unknown httpOpCode %d", httpOpCode);
+                debug_if(_debug_trace_on, "httpSetPar: unknown httpOpCode %d\n", httpOpCode);
                 break;
         }
 
@@ -437,7 +437,7 @@ bool UbloxCellularDriverGenAtDataExt::httpCommand(int httpProfile,
     int at_timeout = _at_timeout;
     char defaultFilename[] = "http_last_response_x";
 
-    tr_debug("%s", getHttpCmd(httpCmd));
+    debug_if(_debug_trace_on, "%s\n", getHttpCmd(httpCmd));
 
     if (IS_PROFILE(httpProfile)) {
         LOCK();
@@ -500,7 +500,7 @@ bool UbloxCellularDriverGenAtDataExt::httpCommand(int httpProfile,
                 }
                 break;
             default:
-                tr_debug("HTTP command not recognised");
+                debug_if(_debug_trace_on, "HTTP command not recognised\n");
                 break;
         }
 
@@ -533,7 +533,7 @@ bool UbloxCellularDriverGenAtDataExt::httpCommand(int httpProfile,
             at_set_timeout(at_timeout);
 
             if (!success) {
-                tr_debug("%s: ERROR", getHttpCmd(httpCmd));
+                debug_if(_debug_trace_on, "%s: ERROR\n", getHttpCmd(httpCmd));
             }
 
         }
