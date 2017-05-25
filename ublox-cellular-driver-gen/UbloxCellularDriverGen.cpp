@@ -548,10 +548,11 @@ bool UbloxCellularDriverGen::ussdCommand(const char* cmd, char* buf, int len)
 {
     bool success = false;
     char * tmpBuf;
-    int atTimeout = _at_timeout;
+    int atTimeout;
     int x;
     Timer timer;
     LOCK();
+    atTimeout = _at_timeout; // Has to be inside LOCK()s
 
     if (len > 0) {
         *buf = 0;

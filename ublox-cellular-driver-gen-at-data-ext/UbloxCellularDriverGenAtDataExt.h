@@ -33,10 +33,20 @@
 class UbloxCellularDriverGenAtDataExt : public UbloxCellularDriverGenAtData, public UbloxCellularDriverGen {
 
 public:
+    /** Constructor.
+     *
+     * @param tx       the UART TX data pin to which the modem is attached.
+     * @param rx       the UART RX data pin to which the modem is attached.
+     * @param baud     the UART baud rate.
+     * @param debugOn  true to switch AT interface debug on, otherwise false.
+     */
      UbloxCellularDriverGenAtDataExt(PinName tx = MDMTXD,
                                      PinName rx = MDMRXD,
                                      int baud = MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
                                      bool debugOn = false);
+
+     /* Destructor.
+      */
      virtual ~UbloxCellularDriverGenAtDataExt();
 
     /**********************************************************************

@@ -434,13 +434,14 @@ bool UbloxCellularDriverGenAtDataExt::httpCommand(int httpProfile,
 {
     bool atSuccess = false;
     bool success = false;
-    int at_timeout = _at_timeout;
+    int at_timeout;
     char defaultFilename[] = "http_last_response_x";
 
     debug_if(_debug_trace_on, "%s\n", getHttpCmd(httpCmd));
 
     if (IS_PROFILE(httpProfile)) {
         LOCK();
+        at_timeout = _at_timeout; // Has to be inside LOCK()s
 
         if (rspFile == NULL) {
             sprintf(defaultFilename + sizeof (defaultFilename) - 2, "%1d", httpProfile);
@@ -652,13 +653,16 @@ bool UbloxCellularDriverGenAtDataExt::cellLocGetData(CellLocData *data, int inde
 // Get number of position records received.
 int UbloxCellularDriverGenAtDataExt::cellLocGetRes()
 {
-    int at_timeout = _at_timeout;
+    int at_timeout;
+    LOCK();
 
+    at_timeout = _at_timeout; // Has to be inside LOCK()s
     at_set_timeout(1000);
     // Wait for URCs
     _at->recv(UNNATURAL_STRING);
     at_set_timeout(at_timeout);
 
+    UNLOCK();
     return _locRcvPos;
 }
 
@@ -666,15 +670,15 @@ int UbloxCellularDriverGenAtDataExt::cellLocGetRes()
 int UbloxCellularDriverGenAtDataExt::cellLocGetExpRes()
 {
     int numRecords = 0;
+    LOCK();
 
     _at->recv("OK");
 
-    LOCK();
     if (_locRcvPos > 0) {
         numRecords = _locExpPos;
     }
-    UNLOCK();
 
+    UNLOCK();
     return numRecords;
 }
 
