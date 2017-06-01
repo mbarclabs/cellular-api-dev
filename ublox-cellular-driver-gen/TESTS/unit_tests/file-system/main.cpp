@@ -85,9 +85,8 @@ void test_start() {
 
 // Write a file to the module's file system with known contents
 void test_write() {
-    int x;
 
-    for (x = 0; x < sizeof (buf); x++) {
+    for (int x = 0; x < sizeof (buf); x++) {
         buf[x] = (char) x;
     }
 
@@ -98,15 +97,13 @@ void test_write() {
 
 // Read a file back from the module's file system and check the contents
 void test_read() {
-    int x;
-
     memset(buf, 0, sizeof (buf));
 
     TEST_ASSERT(pDriver->readFile(MBED_CONF_APP_FILE_NAME, buf, sizeof (buf)) == sizeof (buf));
 
     tr_debug("%d bytes read from file \"%s\"", sizeof (buf), MBED_CONF_APP_FILE_NAME);
 
-    for (x = 0; x < sizeof (buf); x++) {
+    for (int x = 0; x < sizeof (buf); x++) {
         TEST_ASSERT(buf[x] == (char) x);
     }
 }

@@ -233,17 +233,13 @@ Specification specification(test_setup, cases);
 // ----------------------------------------------------------------
 
 int main() {
-    bool success = false;
-
     mbed_trace_init();
 
     mbed_trace_mutex_wait_function_set(lock);
     mbed_trace_mutex_release_function_set(unlock);
     
     // Run tests
-    success = !Harness::run(specification);
-
-    return success;
+    return !Harness::run(specification);
 }
 
 // End Of File
