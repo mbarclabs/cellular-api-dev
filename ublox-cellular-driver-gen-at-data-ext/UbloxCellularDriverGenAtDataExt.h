@@ -50,18 +50,22 @@ public:
      virtual ~UbloxCellularDriverGenAtDataExt();
 
     /**********************************************************************
-     * PUBLIC: HTTP
+     * PUBLIC: General
      **********************************************************************/
 
     /** Infinite timeout.
      */
     #define TIMEOUT_BLOCKING -1
 
-    /** HTTP Profile error return codes.
+    /**********************************************************************
+     * PUBLIC: HTTP
+     **********************************************************************/
+
+    /** HTTP profile unused marker.
      */
     #define HTTP_PROF_UNUSED -1
 
-    /** Type of HTTP Operational Codes (reference to HTTP control +UHTTP).
+    /** HTTP configuration parameters (reference to HTTP control +UHTTP).
      */
     typedef enum {
         HTTP_IP_ADDRESS = 0,
@@ -73,7 +77,7 @@ public:
         HTTP_SECURE = 6
     } HttpOpCode;
 
-    /** Type of HTTP Commands.
+    /** Type of HTTP Command.
      */
     typedef enum {
         HTTP_HEAD = 0,
@@ -84,7 +88,7 @@ public:
         HTTP_POST_DATA = 5
     } HttpCmd;
 
-    /** HTTP content types
+    /** HTTP content types.
      */
     typedef enum {
         HTTP_CONTENT_URLENCODED = 0,
@@ -114,10 +118,10 @@ public:
     /** Set the timeout for this profile.
      *
      * @param profile    the HTTP profile handle.
-     * @param timeout_ms -1 blocking, else non-blocking timeout in milliseconds.
+     * @param timeout    -1 blocking, else non-blocking timeout in milliseconds.
      * @return           true if successful, otherwise false.
      */
-    bool httpSetTimeout(int profile, int timeout_ms);
+    bool httpSetTimeout(int profile, int timeout);
     
     /** Reset a HTTP profile back to defaults.
      *
@@ -133,20 +137,20 @@ public:
     /** Set HTTP parameters.
      *
      * This should be called as many times as is necessary
-     * to set all the possible parameters (HttpOpCodes).
+     * to set all the possible parameters (HttpOpCode).
      *
      * See section 28.1 of u-blox-ATCommands_Manual(UBX-13002752).pdf
      * for full details.  By example:
      *
      * httpOpCode          httpInPar
-     * HTTP_IP_ADDRESS     "145.33.18.10" (the target server IP address)
-     * HTTP_SERVER_NAME    "www.myserver.com" (the target server name)
+     * HTTP_IP_ADDRESS     "145.33.18.10" (the target HTTP server IP address)
+     * HTTP_SERVER_NAME    "www.myhttpserver.com" (the target HTTP server name)
      * HTTP_USER_NAME      "my_username"
      * HTTP_PASSWORD       "my_password"
      * HTTP_AUTH_TYPE      "0" for no authentication, "1" for username/password
-     *                     authentication
+     *                     authentication (the default is 0)
      * HTTP_SERVER_PORT    "81" (default is port 80)
-     * HTTP_SECURE         "0" for no security, "1" for TLS
+     * HTTP_SECURE         "0" for no security, "1" for TLS (the default is 0)
      *
      * @param httpProfile the HTTP profile identifier.
      * @param httpOpCode  the HTTP operation code.
@@ -196,6 +200,139 @@ public:
                      const char* rspFile, const char* sendStr,
                      int httpContentType, const char* httpCustomPar,
                      char* buf, int len);
+
+    /**********************************************************************
+     * PUBLIC: FTP
+     **********************************************************************/
+
+    /** FTP configuration parameters (reference to FTP control +UFTP).
+     */
+    typedef enum {
+        FTP_IP_ADDRESS = 0,
+        FTP_SERVER_NAME = 1,
+        FTP_USER_NAME = 2,
+        FTP_PASSWORD = 3,
+        FTP_ADDITIONAL_ACCOUNT = 4,
+        FTP_INACTIVITY_TIMEOUT = 5,
+        FTP_MODE = 6,
+        FTP_SERVER_PORT = 7,
+        FTP_SECURE = 8,
+        NUM_FTP_OP_CODES
+    } FtpOpCode;
+
+    /** Type of FTP Command.
+     */
+    typedef enum {
+        FTP_LOGOUT = 0,
+        FTP_LOGIN = 1,
+        FTP_DELETE_FILE = 2,
+        FTP_RENAME_FILE = 3,
+        FTP_GET_FILE = 4,
+        FTP_PUT_FILE = 5,
+        FTP_GET_DIRECT = 6,
+        FTP_PUT_DIRECT = 7,
+        FTP_CD = 8,
+        FTP_MKDIR = 10,
+        FTP_RMDIR = 11,
+        FTP_FILE_INFO = 13,
+        FTP_LS = 14,
+        FTP_FOTA_FILE = 100
+    } FtpCmd;
+
+    /** Set the timeout for FTP operations.
+     *
+     * @param timeout -1 blocking, else non-blocking timeout in milliseconds.
+     * @return         true if successful, otherwise false.
+     */
+    bool ftpSetTimeout(int timeout);
+
+    /** Reset the FTP configuration back to defaults.
+     *
+     * @return   true if successful, false otherwise.
+     */
+    bool ftpResetPar();
+    
+    /** Set FTP parameters.
+     *
+     * This should be called as many times as is necessary
+     * to set all the possible parameters (FtpOpCode).
+     *
+     * See section 27.1 of u-blox-ATCommands_Manual(UBX-13002752).pdf
+     * for full details.  By example:
+     *
+     * ftpOpCode              ftpInPar
+     * FTP_IP_ADDRESS         "145.33.18.10" (the target FTP server IP address)
+     * FTP_SERVER_NAME        "www.ftpserver.com" (the target FTP server name)
+     * FTP_USER_NAME          "my_username"
+     * FTP_PASSWORD           "my_password"
+     * FTP_ADDITIONAL_ACCOUNT "my_username2"
+     * FTP_INACTIVITY_TIMEOUT "60" (the default is 0, which means no timeout)
+     * FTP_MODE               "0" for active, "1" for passive (the default is 0) 
+     * FTP_SERVER_PORT        "25" (default is port 21)
+     * FTP_SECURE             "0" for no security, "1" for SFTP (the default is 0)
+     *
+     * @param ftpOpCode  the FTP operation code.
+     * @param ftpInPar   the FTP input parameter.
+     * @return           true if successful, false otherwise.
+     */
+    bool ftpSetPar(FtpOpCode ftpOpCode, const char * ftpInPar);
+    
+    /** Perform an FTP command.
+     *
+     * Connect() must have been called previously to establish a data
+     * connection.
+     *
+     * See section 27.2 of u-blox-ATCommands_Manual(UBX-13002752).pdf
+     * for full details.  By example, it works like this:
+     *
+     * ftpCmd               file1      file2     offset    buf     len
+     * FTP_LOGOUT            N/A        N/A       N/A      N/A     N/A 
+     * FTP_LOGIN             N/A        N/A       N/A      N/A     N/A 
+     * FTP_DELETE_FILE   "the_file"     N/A       N/A      N/A     N/A 
+     * FTP_RENAME_FILE   "old_name"  "new_name"   N/A      N/A     N/A 
+     * FTP_GET_FILE      "the_file"     NULL   0 - 65535   N/A     N/A (Note 1)
+     * FTP_PUT_FILE      "the_file"     NULL   0 - 65535   N/A     N/A (Note 1)
+     * FTP_CD            "dir1\dir2"    N/A       N/A      N/A     N/A 
+     * FTP_MKDIR         "newdir"       N/A       N/A      N/A     N/A 
+     * FTP_RMDIR         "dir"          N/A       N/A      N/A     N/A 
+     * FTP_FILE_INFO     "the_path"     N/A       N/A         Note 2
+     * FTP_LS            "the_path"     N/A       N/A         Note 2
+     * FTP_FOTA_FILE     "the_file"     N/A       N/A         Note 3
+     *
+     * Note 1: the file will placed into the modem file system for the
+     * GET case (and can be read with readFile()), or must already be in the
+     * modem file system, (can be written using writeFile()) for the PUT case.
+     * Note 2: buf should point to the location where the file info
+     * or directory listing is to be stored and len should be the maximum
+     * length that can be stored.
+     * Note 3: a hex string representing the MD5 sum of the FOTA file will be
+     * stored at buf; len must be at least 32 as an MD5 sum is 16 bytes.
+     * Note 4: FTP_GET_DIRECT and FTP_PUT_DIRECT are not supported by
+     * this driver.
+     *
+     * @param ftpCmd     the FTP command.
+     * @param file1      the first file name if required (NULL otherwise).
+     * @param file2      the second file name if required (NULL otherwise).
+     * @param offset     the offset (in bytes) at which to begin the get
+     *                   or put operation within the file.
+     * @param buf        pointer to a buffer, required for FTP_DIRECT mode
+     *                   and FTP_LS only.
+     * @param len        the size of buf.
+     * @return           true if successful, false otherwise.
+     */
+    bool ftpCommand(FtpCmd ftpCmd, const char* file1 = NULL, const char* file2 = NULL,
+                    int offset = 0, char* buf = NULL, int len = 0);
+
+    /** Get the error code for the last FTP operation.
+     *
+     * See section Appendix A.B of u-blox-ATCommands_Manual(UBX-13002752).pdf
+     * for details.
+     *
+     * @param errorClass pointer to an int in which to store the error class.
+     * @param errorCode  pointer to an int in which to store the error code.
+     * @return           true if successful, false otherwise.
+     */
+    bool ftpGetErr(int *errorClass, int* errorCode);
 
     /**********************************************************************
      * PUBLIC: Cell Locate
@@ -335,14 +472,14 @@ protected:
      * It is possible to have up to 4 different HTTP profiles (LISA-C200, LISA-U200 and SARA-G350) having:
      *
      * @param handle     the current HTTP profile is in handling state or not (default value is HTTP_ERROR).
-     * @param timeout_ms the timeout for the current HTTP command.
+     * @param timeout    the timeout for the current HTTP command.
      * @param pending    the status for the current HTTP command (in processing state or not).
      * @param cmd        the code for the current HTTP command.
      * @param result     the result for the current HTTP command once processed.
      */
      typedef struct {
          int modemHandle;
-         int timeout_ms;
+         int timeout;
          volatile bool pending;
          volatile int cmd;
          volatile int result;
@@ -364,7 +501,6 @@ protected:
      */
     int findProfile(int modemHandle = HTTP_PROF_UNUSED);
 
-
     /** Helper function to get a HTTP command as a text string, useful
      * for debug purposes.
      *
@@ -372,6 +508,54 @@ protected:
      * @return            HTTP command in string format.
      */
     const char* getHttpCmd(HttpCmd httpCmd);
+
+    /**********************************************************************
+     * PROTECTED: FTP
+     **********************************************************************/
+
+    /** Unused FTP op code marker.
+     */
+    #define FTP_OP_CODE_UNUSED -1
+
+    /** The FTP timeout in milliseconds.
+     */
+    int _ftpTimeout;
+
+    /** A place to store the FTP op code for the last result.
+     */
+    volatile int _lastFtpOpCodeResult;
+
+    /** A place to store the last FTP result.
+     */
+    volatile int _lastFtpResult;
+
+    /** A place to store the last FTP op code for data response.
+     */
+    volatile int _lastFtpOpCodeData;
+
+    /** A place to store data returns from an FTP operation.
+     */
+    char * _ftpBuf;
+
+    /** The length of FTP data that can be stored (at _ftpBuf).
+     */
+    int _ftpBufLen;
+
+    /** Callback to capture the result of an FTP command.
+     */
+    void UUFTPCR_URC();
+
+    /** Callback to capture data returned from an FTP command.
+     */
+    void UUFTPCD_URC();
+
+    /** Helper function to get an FTP command as a text string, useful
+     * for debug purposes.
+     *
+     * @param ftpCmdCode  the FTP command.
+     * @return            FTP command in string format.
+     */
+    const char * getFtpCmd(FtpCmd ftpCmd);
 
     /**********************************************************************
      * PROTECTED: Cell Locate

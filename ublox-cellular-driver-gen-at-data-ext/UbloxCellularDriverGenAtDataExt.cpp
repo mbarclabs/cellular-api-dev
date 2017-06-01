@@ -59,7 +59,7 @@ int UbloxCellularDriverGenAtDataExt::findProfile(int modemHandle)
     return HTTP_PROF_UNUSED;
 }
 
-// Return a string representing an AT command.
+// Return a string representing an HTTP AT command.
 const char * UbloxCellularDriverGenAtDataExt::getHttpCmd(HttpCmd httpCmd)
 {
     const char * str = "HTTP command not recognised";
@@ -82,6 +82,106 @@ const char * UbloxCellularDriverGenAtDataExt::getHttpCmd(HttpCmd httpCmd)
             break;
         case HTTP_POST_DATA:
             str = "HTTP POST data command";
+            break;
+        default:
+            break;
+    }
+
+    return str;
+}
+
+/**********************************************************************
+ * PROTECTED METHODS: FTP
+ **********************************************************************/
+
+// Callback for FTP result code handling.
+void UbloxCellularDriverGenAtDataExt::UUFTPCR_URC()
+{
+    char buf[64];
+    char md5[32];
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +UUFTPCR: <op_code>,<ftp_result>[,<md5_sum>]
+    if (read_at_to_char(buf, sizeof (buf), '\n') > 0) {
+        if (sscanf(buf, ": %d,%d,%32[^\n]\n", &_lastFtpOpCodeResult, &_lastFtpResult, md5) == 3) {
+            // Store the MD5 sum if we can
+            if ((_ftpBuf != NULL) && (_ftpBufLen >= 32)) {
+                memcpy (_ftpBuf, md5, 32);
+                if (_ftpBufLen == 33) {
+                    *(buf + 32) = 0; // Add a terminator if there's room
+                }
+            }
+        }
+        debug_if(_debug_trace_on, "%s result code is %d\n",
+                 getFtpCmd((FtpCmd) _lastFtpOpCodeResult), _lastFtpResult);
+    }
+}
+
+// Callback for FTP data handling.
+void UbloxCellularDriverGenAtDataExt::UUFTPCD_URC()
+{
+    char buf[32];
+    char *ftpBufPtr = _ftpBuf;
+    int ftpDataLen;
+
+    // Note: not calling _at->recv() from here as we're
+    // already in an _at->recv()
+    // +UUFTPCD: <op_code>,<ftp_data_len>,<ftp_data_in_quotes>
+    if (read_at_to_char(buf, sizeof(buf), '\"') > 0) {
+        if (sscanf(buf, ": %d,%d,\"", &_lastFtpOpCodeData, &ftpDataLen) == 2) {
+            if ((ftpBufPtr != NULL) && (_ftpBufLen > 0)) {
+                if (ftpDataLen + 1 > _ftpBufLen) { // +1 for terminator
+                    ftpDataLen = _ftpBufLen - 1;
+                }
+                ftpBufPtr += _at->read(ftpBufPtr, ftpDataLen);
+                *ftpBufPtr = 0; // Add terminator
+            }
+        }
+    }
+}
+
+// Return a string representing an FTP AT command.
+const char * UbloxCellularDriverGenAtDataExt::getFtpCmd(FtpCmd ftpCmd)
+{
+    const char * str = "FTP command not recognised";
+
+    switch (ftpCmd) {
+        case FTP_LOGOUT:
+            str = "FTP log out command";
+            break;
+        case FTP_LOGIN:
+            str = "FTP log in command";
+            break;
+        case FTP_DELETE_FILE:
+            str = "FTP delete file command";
+            break;
+        case FTP_RENAME_FILE:
+            str = "FTP rename file command";
+            break;
+        case FTP_GET_FILE:
+            str = "FTP get file command";
+            break;
+        case FTP_PUT_FILE:
+            str = "FTP put file command";
+            break;
+        case FTP_CD:
+            str = "FTP change directory command";
+            break;
+        case FTP_MKDIR:
+            str = "FTP make directory command";
+            break;
+        case FTP_RMDIR:
+            str = "FTP remove directory command";
+            break;
+        case FTP_FILE_INFO:
+            str = "FTP file info command";
+            break;
+        case FTP_LS:
+            str = "FTP directory list command";
+            break;
+        case FTP_FOTA_FILE:
+            str = "FTP FOTA file command";
             break;
         default:
             break;
@@ -181,7 +281,7 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
     // +UHTTPCR: <profile_id>,<op_code>,<param_val>
     if (read_at_to_char(urcBuf, sizeof (urcBuf), '\n') > 0) {
         // +UULOC: <date>,<time>,<lat>,<long>,<alt>,<uncertainty>,<speed>, <direction>,<vertical_acc>,<sensor_used>,<SV_used>,<antenna_status>, <jamming_status>
-        if (sscanf(urcBuf, " %d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%d,%*d,%*d",
+        if (sscanf(urcBuf, ": %d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%d,%*d,%*d",
                    &_loc[0].time.tm_mday, &_loc[0].time.tm_mon,
                    &_loc[0].time.tm_year, &_loc[0].time.tm_hour,
                    &_loc[0].time.tm_min, &_loc[0].time.tm_sec,
@@ -199,7 +299,7 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
             _locExpPos=1;
             _locRcvPos++;
         // +UULOC: <sol>,<num>,<sensor_used>,<date>,<time>,<lat>,<long>,<alt>,<uncertainty>,<speed>, <direction>,<vertical_acc>,,<SV_used>,<antenna_status>, <jamming_status>
-        } else if (sscanf(urcBuf, " %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%*d,%*d",
+        } else if (sscanf(urcBuf, ": %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%d,%d,%d,%d,%d,%*d,%*d",
                    &a, &_locExpPos, &b,
                    &_loc[CELL_MAX_HYP - 1].time.tm_mday,
                    &_loc[CELL_MAX_HYP - 1].time.tm_mon,
@@ -229,7 +329,7 @@ void UbloxCellularDriverGenAtDataExt::UULOC_URC()
                 _locRcvPos++;
             }
         //+UULOC: <sol>,<num>,<sensor_used>,<date>,<time>,<lat>,<long>,<alt>,<lat50>,<long50>,<major50>,<minor50>,<orientation50>,<confidence50>[,<lat95>,<long95>,<major95>,<minor95>,<orientation95>,<confidence95>]
-        } else if (sscanf(urcBuf, " %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%*f,%*f,%d,%*d,%*d,%*d",
+        } else if (sscanf(urcBuf, ": %d,%d,%d,%d/%d/%d,%d:%d:%d.%*d,%f,%f,%d,%*f,%*f,%d,%*d,%*d,%*d",
                    &a, &_locExpPos, &b,
                    &_loc[CELL_MAX_HYP - 1].time.tm_mday,
                    &_loc[CELL_MAX_HYP - 1].time.tm_mon,
@@ -270,10 +370,6 @@ UbloxCellularDriverGenAtDataExt::UbloxCellularDriverGenAtDataExt(PinName tx,
                                                                  bool debugOn):
                                  UbloxCellularDriverGenAtData(tx, rx, baud, debugOn)
 {
-    // Zero Cell Locate stuff
-    _locRcvPos = 0;
-    _locExpPos = 0;
-
     // Zero HTTP profiles
     memset(_httpProfiles, 0, sizeof(_httpProfiles));
     for (unsigned int profile = 0; profile < sizeof(_httpProfiles) / sizeof(_httpProfiles[0]);
@@ -281,12 +377,28 @@ UbloxCellularDriverGenAtDataExt::UbloxCellularDriverGenAtDataExt(PinName tx,
         _httpProfiles[profile].modemHandle = HTTP_PROF_UNUSED;
     }
 
+    // Zero FTP stuff
+    _ftpTimeout = TIMEOUT_BLOCKING;
+    _lastFtpOpCodeResult = FTP_OP_CODE_UNUSED;
+    _lastFtpResult = 0;
+    _lastFtpOpCodeData = FTP_OP_CODE_UNUSED;
+    _ftpBuf = NULL;
+    _ftpBufLen = 0;
+
+    // Zero Cell Locate stuff
+    _locRcvPos = 0;
+    _locExpPos = 0;
+
     // URC handler for HTTP
     _at->oob("+UUHTTPCR", callback(this, &UbloxCellularDriverGenAtDataExt::UUHTTPCR_URC));
 
+    // URC handlers for FTP
+    _at->oob("+UUFTPCR", callback(this, &UbloxCellularDriverGenAtDataExt::UUFTPCR_URC));
+    _at->oob("+UUFTPCD", callback(this, &UbloxCellularDriverGenAtDataExt::UUFTPCD_URC));
+
     // URC handlers for Cell Locate
-    _at->oob("+UULOCIND:", callback(this, &UbloxCellularDriverGenAtDataExt::UULOCIND_URC));
-    _at->oob("+UULOC:", callback(this, &UbloxCellularDriverGenAtDataExt::UULOC_URC));
+    _at->oob("+UULOCIND", callback(this, &UbloxCellularDriverGenAtDataExt::UULOCIND_URC));
+    _at->oob("+UULOC", callback(this, &UbloxCellularDriverGenAtDataExt::UULOC_URC));
 }
 
 // Destructor.
@@ -310,7 +422,7 @@ int UbloxCellularDriverGenAtDataExt::httpAllocProfile()
 
     if (profile != HTTP_PROF_UNUSED) {
         _httpProfiles[profile].modemHandle = 1;
-        _httpProfiles[profile].timeout_ms  = TIMEOUT_BLOCKING;
+        _httpProfiles[profile].timeout     = TIMEOUT_BLOCKING;
         _httpProfiles[profile].pending     = false;
         _httpProfiles[profile].cmd         = -1;
         _httpProfiles[profile].result      = -1;
@@ -329,7 +441,7 @@ bool UbloxCellularDriverGenAtDataExt::httpFreeProfile(int profile)
     if (IS_PROFILE(profile)) {
         debug_if(_debug_trace_on, "httpFreeProfile(%d)\n", profile);
         _httpProfiles[profile].modemHandle = HTTP_PROF_UNUSED;
-        _httpProfiles[profile].timeout_ms  = TIMEOUT_BLOCKING;
+        _httpProfiles[profile].timeout     = TIMEOUT_BLOCKING;
         _httpProfiles[profile].pending     = false;
         _httpProfiles[profile].cmd         = -1;
         _httpProfiles[profile].result      = -1;
@@ -341,15 +453,15 @@ bool UbloxCellularDriverGenAtDataExt::httpFreeProfile(int profile)
 }
 
 // Set the blocking/timeout state of a profile.
-bool UbloxCellularDriverGenAtDataExt::httpSetTimeout(int profile, int timeout_ms)
+bool UbloxCellularDriverGenAtDataExt::httpSetTimeout(int profile, int timeout)
 {
     bool success = false;
     LOCK();
 
-    debug_if(_debug_trace_on, "httpSetTimeout(%d, %d)\n", profile, timeout_ms);
+    debug_if(_debug_trace_on, "httpSetTimeout(%d, %d)\n", profile, timeout);
 
     if (IS_PROFILE(profile)) {
-        _httpProfiles[profile].timeout_ms = timeout_ms;
+        _httpProfiles[profile].timeout = timeout;
         success = true;
     }
 
@@ -513,6 +625,7 @@ bool UbloxCellularDriverGenAtDataExt::httpCommand(int httpProfile,
             _httpProfiles[httpProfile].result = -1;
 
             // Waiting for unsolicited result code
+            timer.start();
             while (_httpProfiles[httpProfile].pending) {
                 if (_httpProfiles[httpProfile].result != -1) {
                     // Received unsolicited: starting its analysis
@@ -523,13 +636,14 @@ bool UbloxCellularDriverGenAtDataExt::httpCommand(int httpProfile,
                             success = true;
                         }
                     }
-                } else if (!TIMEOUT(timer, _httpProfiles[httpProfile].timeout_ms)) {
+                } else if (!TIMEOUT(timer, _httpProfiles[httpProfile].timeout)) {
                     // Wait for URCs
                     _at->recv(UNNATURAL_STRING);
                 } else  {
                     _httpProfiles[httpProfile].pending = false;
                 }
             }
+            timer.stop();
 
             at_set_timeout(at_timeout);
 
@@ -544,6 +658,172 @@ bool UbloxCellularDriverGenAtDataExt::httpCommand(int httpProfile,
 
     return success;
 }
+
+/**********************************************************************
+ * PUBLIC METHODS: FTP
+ **********************************************************************/
+
+// Set the blocking/timeout for FTP.
+bool UbloxCellularDriverGenAtDataExt::ftpSetTimeout(int timeout)
+{
+    LOCK();
+    debug_if(_debug_trace_on, "ftpSetTimeout(%d)\n", timeout);
+    _ftpTimeout = timeout;
+    UNLOCK();
+
+    return true;
+}
+
+// Reset the FTP configuration back to defaults.
+bool UbloxCellularDriverGenAtDataExt::ftpResetPar()
+{
+    bool success = true;
+    LOCK();
+
+    debug_if(_debug_trace_on, "ftpResetPar()\n");
+    for (int x = 0; success && (x < NUM_FTP_OP_CODES); x++) {
+        success = _at->send("AT+UFTP=%d", x) && _at->recv("OK");
+    }
+
+    UNLOCK();
+    return success;
+}
+
+// Set FTP parameters.
+bool UbloxCellularDriverGenAtDataExt::ftpSetPar(FtpOpCode ftpOpCode,
+                                                const char * ftpInPar)
+{
+    bool success = false;
+    int ftpInParNum = 0;
+    LOCK();
+
+    debug_if(_debug_trace_on, "ftpSetPar(%d, %s)\n", ftpOpCode, ftpInPar);
+    switch (ftpOpCode) {
+        case FTP_IP_ADDRESS:         // 0
+        case FTP_SERVER_NAME:        // 1
+        case FTP_USER_NAME:          // 2
+        case FTP_PASSWORD:           // 3
+        case FTP_ADDITIONAL_ACCOUNT: // 4
+            success = _at->send("AT+UFTP=%d,\"%s\"", ftpOpCode, ftpInPar) &&
+                      _at->recv("OK");
+            break;
+        case FTP_INACTIVITY_TIMEOUT: // 5
+        case FTP_MODE:               // 6
+        case FTP_SERVER_PORT:        // 7
+        case FTP_SECURE:             // 8
+            ftpInParNum = atoi(ftpInPar);
+            success = _at->send("AT+UFTP=%d,%d", ftpOpCode, ftpInParNum) &&
+                      _at->recv("OK");
+            break;
+        default:
+            debug_if(_debug_trace_on, "ftpSetPar: unknown ftpOpCode %d\n", ftpOpCode);
+            break;
+    }
+
+    UNLOCK();
+    return success;
+}
+
+// Perform an FTP command.
+bool UbloxCellularDriverGenAtDataExt::ftpCommand(FtpCmd ftpCmd,
+                                                 const char* file1,
+                                                 const char* file2,
+                                                 int offset,
+                                                 char* buf, int len)
+{
+    bool atSuccess = false;
+    bool success = false;
+    int at_timeout;
+    LOCK();
+    at_timeout = _at_timeout; // Has to be inside LOCK()s
+
+    debug_if(_debug_trace_on, "%s\n", getFtpCmd(ftpCmd));
+    switch (ftpCmd) {
+        case FTP_LOGOUT:
+        case FTP_LOGIN:
+            atSuccess = _at->send("AT+UFTPC=%d", ftpCmd) && _at->recv("OK");
+            break;
+        case FTP_DELETE_FILE:
+        case FTP_CD:
+        case FTP_MKDIR:
+        case FTP_RMDIR:
+        case FTP_FOTA_FILE:
+            atSuccess = _at->send("AT+UFTPC=%d,\"%s\"", ftpCmd, file1) &&
+                        _at->recv("OK");
+            break;
+        case FTP_RENAME_FILE:
+            atSuccess = _at->send("AT+UFTPC=%d,\"%s\",\"%s\"", ftpCmd, file1, file2) &&
+                        _at->recv("OK");
+            break;
+        case FTP_GET_FILE:
+        case FTP_PUT_FILE:
+            atSuccess = _at->send("AT+UFTPC=%d,\"%s\",%d", ftpCmd, file1, offset) &&
+                        _at->recv("OK");
+            break;
+        case FTP_FILE_INFO:
+        case FTP_LS:
+            if (file1 == NULL) {
+                atSuccess = _at->send("AT+UFTPC=%d", ftpCmd) &&
+                            _at->recv("OK");
+            } else {
+                atSuccess = _at->send("AT+UFTPC=%d,\"%s\"", ftpCmd, file1) &&
+                            _at->recv("OK");
+            }
+            break;
+        default:
+            debug_if(_debug_trace_on, "FTP command not recognised/supported\n");
+            break;
+    }
+
+    // Wait for the result to arrive back
+    if (atSuccess) {
+        Timer timer;
+
+        at_set_timeout(1000);
+        _lastFtpOpCodeData = FTP_OP_CODE_UNUSED;
+        _lastFtpOpCodeResult = FTP_OP_CODE_UNUSED;
+        _lastFtpResult = -1; // just for safety
+
+        // Waiting for result to arrive
+        timer.start();
+        while ((_lastFtpOpCodeResult == FTP_OP_CODE_UNUSED) &&
+                !TIMEOUT(timer, _ftpTimeout)) {
+            _at->recv(UNNATURAL_STRING);
+        }
+        timer.stop();
+
+        if ((_lastFtpOpCodeResult == ftpCmd) && (_lastFtpResult == 0)) {
+            // Got a result for our FTP op code and it is good
+            success = true;
+        }
+
+        at_set_timeout(at_timeout);
+
+        if (!success) {
+            debug_if(_debug_trace_on, "%s: ERROR, call ftpGetErr() to find out more\n",
+                     getFtpCmd(ftpCmd));
+        }
+    }
+
+    UNLOCK();
+    return success;
+}
+
+// Get the error class and code for the last FTP operation
+bool UbloxCellularDriverGenAtDataExt::ftpGetErr(int *errorClass, int* errorCode)
+{
+    bool success = true;
+    LOCK();
+
+    debug_if(_debug_trace_on, "ftpGetErr()\n");
+    success = _at->send("AT+UFTPER") &&
+              _at->recv("+UFTPER:%d,%d", errorClass, errorCode) &&
+              _at->recv("OK");
+
+    UNLOCK();
+    return success;
+}
+
 
 /**********************************************************************
  * PUBLIC METHODS: Cell Locate
