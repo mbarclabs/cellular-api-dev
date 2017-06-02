@@ -2,7 +2,7 @@
 #include "greentea-client/test_env.h"
 #include "unity.h"
 #include "utest.h"
-#include "UbloxCellularDriverGenAtDataExt.h"
+#include "UbloxATCellularInterfaceExt.h"
 #include "UDPSocket.h"
 #include "FEATURE_COMMON_PAL/nanostack-libservice/mbed-client-libservice/common_functions.h"
 #include "mbed_trace.h"
@@ -64,10 +64,10 @@ using namespace utest::v1;
 static Mutex mtx;
 
 // An instance of the cellular interface
-static UbloxCellularDriverGenAtDataExt *pDriver =
-       new UbloxCellularDriverGenAtDataExt(MDMTXD, MDMRXD,
-                                           MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
-                                           true);
+static UbloxATCellularInterfaceExt *pDriver =
+       new UbloxATCellularInterfaceExt(MDMTXD, MDMRXD,
+                                       MBED_CONF_UBLOX_CELL_BAUD_RATE,
+                                       true);
 // A few buffers for general use
 static char buf[1024];
 static char buf1[sizeof(buf)];
@@ -105,48 +105,48 @@ void test_http_cmd() {
     pDriver->httpSetTimeout(profile, HTTP_TIMEOUT);
 
     // Set up the server to talk to
-    TEST_ASSERT(pDriver->httpSetPar(profile, UbloxCellularDriverGenAtDataExt::HTTP_SERVER_NAME, HTTP_ECHO_SERVER));
+    TEST_ASSERT(pDriver->httpSetPar(profile, UbloxATCellularInterfaceExt::HTTP_SERVER_NAME, HTTP_ECHO_SERVER));
 
     // Check HTTP head request
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(pDriver->httpCommand(profile, UbloxCellularDriverGenAtDataExt::HTTP_HEAD,
+    TEST_ASSERT(pDriver->httpCommand(profile, UbloxATCellularInterfaceExt::HTTP_HEAD,
                                      "/headers",
                                      NULL, NULL, 0, NULL,
-                                     buf, sizeof (buf)));
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     TEST_ASSERT(strstr(buf, "Content-Length:") != NULL);
 
     // Check HTTP get request
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(pDriver->httpCommand(profile, UbloxCellularDriverGenAtDataExt::HTTP_GET,
+    TEST_ASSERT(pDriver->httpCommand(profile, UbloxATCellularInterfaceExt::HTTP_GET,
                                      "/get",
                                      NULL, NULL, 0, NULL,
-                                     buf, sizeof (buf)));
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     TEST_ASSERT(strstr(buf, "\"http://httpbin.org/get\"") != NULL);
 
     // Check HTTP delete request
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(pDriver->httpCommand(profile, UbloxCellularDriverGenAtDataExt::HTTP_DELETE,
+    TEST_ASSERT(pDriver->httpCommand(profile, UbloxATCellularInterfaceExt::HTTP_DELETE,
                                      "/delete",
                                      NULL, NULL, 0, NULL,
-                                     buf, sizeof (buf)));
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     TEST_ASSERT(strstr(buf, "\"http://httpbin.org/delete\"") != NULL);
 
     // Check HTTP put request (this will fail as the echo server doesn't support it)
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(!pDriver->httpCommand(profile, UbloxCellularDriverGenAtDataExt::HTTP_PUT,
-                                      "/put",
-                                      NULL, NULL, 0, NULL,
-                                      buf, sizeof (buf)));
+    TEST_ASSERT(pDriver->httpCommand(profile, UbloxATCellularInterfaceExt::HTTP_PUT,
+                                     "/put",
+                                     NULL, NULL, 0, NULL,
+                                     buf, sizeof (buf)) != NULL);
 
     // Check HTTP post request with data
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(pDriver->httpCommand(profile, UbloxCellularDriverGenAtDataExt::HTTP_POST_DATA,
+    TEST_ASSERT(pDriver->httpCommand(profile, UbloxATCellularInterfaceExt::HTTP_POST_DATA,
                                      "/post",
                                      NULL, NULL, 0, NULL,
-                                     buf, sizeof (buf)));
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     TEST_ASSERT(strstr(buf, "\"http://httpbin.org/post\"") != NULL);
 
@@ -163,11 +163,11 @@ void test_http_cmd() {
     pDriver->delFile("rsp.txt");
 
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(pDriver->httpCommand(profile, UbloxCellularDriverGenAtDataExt::HTTP_POST_FILE,
+    TEST_ASSERT(pDriver->httpCommand(profile, UbloxATCellularInterfaceExt::HTTP_POST_FILE,
                                      "/post",
                                      "rsp.txt", "post_test.txt",
-                                     UbloxCellularDriverGenAtDataExt::HTTP_CONTENT_TEXT, NULL,
-                                     buf, sizeof (buf)));
+                                     UbloxATCellularInterfaceExt::HTTP_CONTENT_TEXT, NULL,
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     // Find the data in the response and check it
     pData = strstr(buf, "\"data\": \"");
@@ -185,6 +185,8 @@ void test_http_cmd() {
 
     TEST_ASSERT(pDriver->httpFreeProfile(profile));
     TEST_ASSERT(pDriver->disconnect() == 0);
+    // Wait for printfs to leave the building or the test result string gets messed up
+    wait_ms(500);
 }
 
 // Test HTTP with TLS
@@ -202,33 +204,35 @@ void test_http_tls() {
 
     // Set up the server to talk to and TLS, using the IP address this time just for variety
     TEST_ASSERT(pDriver->gethostbyname("amazon.com", &address) == 0);
-    TEST_ASSERT(pDriver->httpSetPar(profile, UbloxCellularDriverGenAtDataExt::HTTP_IP_ADDRESS, address.get_ip_address()));
-    TEST_ASSERT(pDriver->httpSetPar(profile, UbloxCellularDriverGenAtDataExt::HTTP_SECURE, "1"));
+    TEST_ASSERT(pDriver->httpSetPar(profile, UbloxATCellularInterfaceExt::HTTP_IP_ADDRESS, address.get_ip_address()));
+    TEST_ASSERT(pDriver->httpSetPar(profile, UbloxATCellularInterfaceExt::HTTP_SECURE, "1"));
 
     // Check HTTP get request
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(pDriver->httpCommand(profile, UbloxCellularDriverGenAtDataExt::HTTP_GET,
+    TEST_ASSERT(pDriver->httpCommand(profile, UbloxATCellularInterfaceExt::HTTP_GET,
                                      "/",
                                      NULL, NULL, 0, NULL,
-                                     buf, sizeof (buf)));
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     // This is what amazon.com returns if TLS is set
     TEST_ASSERT(strstr(buf, "302 MovedTemporarily") != NULL);
 
     // Reset the profile and check that this now fails
     TEST_ASSERT(pDriver->httpResetProfile(profile));
-    TEST_ASSERT(pDriver->httpSetPar(profile, UbloxCellularDriverGenAtDataExt::HTTP_IP_ADDRESS, address.get_ip_address()));
+    TEST_ASSERT(pDriver->httpSetPar(profile, UbloxATCellularInterfaceExt::HTTP_IP_ADDRESS, address.get_ip_address()));
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(pDriver->httpCommand(profile, UbloxCellularDriverGenAtDataExt::HTTP_GET,
+    TEST_ASSERT(pDriver->httpCommand(profile, UbloxATCellularInterfaceExt::HTTP_GET,
                                      "/",
                                      NULL, NULL, 0, NULL,
-                                     buf, sizeof (buf)));
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     // This is what amazon.com returns if TLS is NOT set
     TEST_ASSERT(strstr(buf, "301 Moved Permanently") != NULL);
 
     TEST_ASSERT(pDriver->httpFreeProfile(profile));
     TEST_ASSERT(pDriver->disconnect() == 0);
+    // Wait for printfs to leave the building or the test result string gets messed up
+    wait_ms(500);
 }
 
 // Allocate max profiles
@@ -241,14 +245,14 @@ void test_alloc_profiles() {
     // Allocate first profile and use it
     profiles[0] = pDriver->httpAllocProfile();
     TEST_ASSERT(profiles[0] >= 0);
-    TEST_ASSERT(pDriver->httpSetPar(profiles[0], UbloxCellularDriverGenAtDataExt::HTTP_SERVER_NAME, "developer.mbed.org"));
+    TEST_ASSERT(pDriver->httpSetPar(profiles[0], UbloxATCellularInterfaceExt::HTTP_SERVER_NAME, "developer.mbed.org"));
 
     // Check HTTP get request
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(pDriver->httpCommand(profiles[0], UbloxCellularDriverGenAtDataExt::HTTP_GET,
+    TEST_ASSERT(pDriver->httpCommand(profiles[0], UbloxATCellularInterfaceExt::HTTP_GET,
                                      "/media/uploads/mbed_official/hello.txt",
                                      NULL, NULL, 0, NULL,
-                                     buf, sizeof (buf)));
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     TEST_ASSERT(strstr(buf, "Hello world!") != NULL);
 
@@ -261,24 +265,24 @@ void test_alloc_profiles() {
 
     // Now use the last one and check that it doesn't affect the first one
     TEST_ASSERT(pDriver->httpSetPar(profiles[sizeof (profiles) / sizeof (profiles[0]) - 1],
-                                    UbloxCellularDriverGenAtDataExt::HTTP_SERVER_NAME, HTTP_ECHO_SERVER));
+                                    UbloxATCellularInterfaceExt::HTTP_SERVER_NAME, HTTP_ECHO_SERVER));
 
     // Check HTTP head request on last profile
     memset(buf, 0, sizeof (buf));
     TEST_ASSERT(pDriver->httpCommand(profiles[sizeof (profiles) / sizeof (profiles[0]) - 1],
-                                     UbloxCellularDriverGenAtDataExt::HTTP_HEAD,
+                                     UbloxATCellularInterfaceExt::HTTP_HEAD,
                                      "/headers",
                                      NULL, NULL, 0, NULL,
-                                     buf, sizeof (buf)));
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     TEST_ASSERT(strstr(buf, "Content-Length:") != NULL);
 
     // Check HTTP get request on first profile once more
     memset(buf, 0, sizeof (buf));
-    TEST_ASSERT(pDriver->httpCommand(profiles[0], UbloxCellularDriverGenAtDataExt::HTTP_GET,
+    TEST_ASSERT(pDriver->httpCommand(profiles[0], UbloxATCellularInterfaceExt::HTTP_GET,
                                      "/media/uploads/mbed_official/hello.txt",
                                      NULL, NULL, 0, NULL,
-                                     buf, sizeof (buf)));
+                                     buf, sizeof (buf)) == NULL);
     tr_debug("Received: %s", buf);
     TEST_ASSERT(strstr(buf, "Hello world!") != NULL);
 
@@ -288,6 +292,8 @@ void test_alloc_profiles() {
     }
 
     TEST_ASSERT(pDriver->disconnect() == 0);
+    // Wait for printfs to leave the building or the test result string gets messed up
+    wait_ms(500);
 }
 
 // ----------------------------------------------------------------

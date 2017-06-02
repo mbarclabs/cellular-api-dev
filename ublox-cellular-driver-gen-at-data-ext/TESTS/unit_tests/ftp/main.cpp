@@ -2,7 +2,7 @@
 #include "greentea-client/test_env.h"
 #include "unity.h"
 #include "utest.h"
-#include "UbloxCellularDriverGenAtDataExt.h"
+#include "UbloxATCellularInterfaceExt.h"
 #include "UDPSocket.h"
 #include "FEATURE_COMMON_PAL/nanostack-libservice/mbed-client-libservice/common_functions.h"
 #include "mbed_trace.h"
@@ -57,19 +57,53 @@ using namespace utest::v1;
 # define MBED_CONF_APP_FTP_SERVER_PASSWORD ""
 #endif
 
-// Additional user account on the FTP server, if required
-#ifndef MBED_CONF_APP_FTP_ADDITIONAL_ACCOUNT
-# define MBED_CONF_APP_FTP_ADDITIONAL_ACCOUNT ""
+// Whether to use SFTP or not
+#ifndef MBED_CONF_APP_FTP_SECURE
+# define MBED_CONF_APP_FTP_SECURE false
 #endif
 
-// The size of file to use.
-#ifndef MBED_CONF_APP_FILE_SIZE
-# define MBED_CONF_APP_FILE_SIZE 42000
+// Port to use on the remote server
+#ifndef MBED_CONF_APP_FTP_SERVER_PORT
+# if MBED_CONF_APP_FTP_SECURE
+#   define MBED_CONF_APP_FTP_SERVER_PORT 22
+# else
+#   define MBED_CONF_APP_FTP_SERVER_PORT 21
+# endif
 #endif
 
-// The name of the file to use.
-#ifndef MBED_CONF_APP_FILE_NAME
-# define MBED_CONF_APP_FILE_NAME "ftp_test_file"
+// Whether to use passive or active node
+#ifndef MBED_CONF_APP_FTP_USE_PASSIVE
+# define MBED_CONF_APP_FTP_USE_PASSIVE false
+#endif
+
+// The name of the file to GET or PUT
+#ifndef MBED_CONF_APP_FTP_FILENAME
+# define MBED_CONF_APP_FTP_FILENAME "ftp_test_file"
+#endif
+
+// The size of file when testing PUT
+#ifndef MBED_CONF_APP_FTP_FILE_SIZE
+# define MBED_CONF_APP_FTP_FILE_SIZE 42000
+#endif
+
+// Whether the server supports FTP put or not
+#ifndef MBED_CONF_APP_FTP_SERVER_SUPPORTS_PUT
+# define MBED_CONF_APP_FTP_SERVER_SUPPORTS_PUT false
+#endif
+
+// Whether the server supports file delete or not
+#ifndef MBED_CONF_APP_FTP_SERVER_SUPPORTS_DELETE
+# define MBED_CONF_APP_FTP_SERVER_SUPPORTS_DELETE false
+#endif
+
+// Whether the server supports file renaming or not
+#ifndef MBED_CONF_APP_FTP_SERVER_SUPPORTS_RENAME
+# define MBED_CONF_APP_FTP_SERVER_SUPPORTS_RENAME false
+#endif
+
+// Whether the server supports MKDIR or not
+#ifndef MBED_CONF_APP_FTP_SERVER_SUPPORTS_MKDIR
+# define MBED_CONF_APP_FTP_SERVER_SUPPORTS_MKDIR false
 #endif
 
 // ----------------------------------------------------------------
@@ -80,12 +114,12 @@ using namespace utest::v1;
 static Mutex mtx;
 
 // An instance of the cellular interface
-static UbloxCellularDriverGenAtDataExt *pDriver =
-       new UbloxCellularDriverGenAtDataExt(MDMTXD, MDMRXD,
-                                           MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
-                                           true);
+static UbloxATCellularInterfaceExt *pDriver =
+       new UbloxATCellularInterfaceExt(MDMTXD, MDMRXD,
+                                       MBED_CONF_UBLOX_CELL_BAUD_RATE,
+                                       true);
 // A buffer for general use
-static char buf[MBED_CONF_APP_FILE_SIZE];
+static char buf[MBED_CONF_APP_FTP_FILE_SIZE];
 
 // ----------------------------------------------------------------
 // PRIVATE FUNCTIONS
@@ -101,6 +135,7 @@ static void unlock()
 {
     mtx.unlock();
 }
+
 
 // Write a file to the module's file system with known contents
 void createFile(const char * filename) {
@@ -130,46 +165,145 @@ void checkFile(const char * filename) {
 // TESTS
 // ----------------------------------------------------------------
 
-// Test FTP commands
-void test_ftp_cmd() {
+// Test the setting up of parameters, connection and login to an FTP session
+void test_ftp_login() {
     SocketAddress address;
+    char portString[10];
+
+    sprintf(portString, "%d", MBED_CONF_APP_FTP_SERVER_PORT);
 
     TEST_ASSERT(pDriver->init(MBED_CONF_APP_DEFAULT_PIN));
 
     // Reset parameters to default to begin with
     TEST_ASSERT(pDriver->ftpResetPar());
 
-    // Create a file in the modem file system
-    createFile(MBED_CONF_APP_FILE_NAME);
+    // Set a timeout for FTP commands
+    TEST_ASSERT(pDriver->ftpSetTimeout(60000));
 
     // Set up the FTP server parameters
-    TEST_ASSERT(pDriver->ftpSetPar(UbloxCellularDriverGenAtDataExt::FTP_SERVER_NAME,
+    TEST_ASSERT(pDriver->ftpSetPar(UbloxATCellularInterfaceExt::FTP_SERVER_NAME,
                                    MBED_CONF_APP_FTP_SERVER));
-    TEST_ASSERT(pDriver->ftpSetPar(UbloxCellularDriverGenAtDataExt::FTP_USER_NAME,
+    TEST_ASSERT(pDriver->ftpSetPar(UbloxATCellularInterfaceExt::FTP_USER_NAME,
                                    MBED_CONF_APP_FTP_USERNAME));
-    TEST_ASSERT(pDriver->ftpSetPar(UbloxCellularDriverGenAtDataExt::FTP_PASSWORD,
+    TEST_ASSERT(pDriver->ftpSetPar(UbloxATCellularInterfaceExt::FTP_PASSWORD,
                                    MBED_CONF_APP_FTP_PASSWORD));
-    TEST_ASSERT(pDriver->ftpSetPar(UbloxCellularDriverGenAtDataExt::FTP_MODE,
-                                   "1"));  // Use passive as active is often
-                                           // not allowed over cellular
+#ifdef MBED_CONF_APP_FTP_ACCOUNT
+    TEST_ASSERT(pDriver->ftpSetPar(UbloxATCellularInterfaceExt::FTP_ACCOUNT,
+                                   MBED_CONF_APP_FTP_ACCOUNT));
+#endif
+
+#if MBED_CONF_APP_FTP_SECURE
+    TEST_ASSERT(pDriver->ftpSetPar(UbloxATCellularInterfaceExt::FTP_SECURE, "1"));
+#endif
+
+    TEST_ASSERT(pDriver->ftpSetPar(UbloxATCellularInterfaceExt::FTP_SERVER_PORT,
+                                   portString));
+#if MBED_CONF_APP_FTP_USE_PASSIVE
+    TEST_ASSERT(pDriver->ftpSetPar(UbloxATCellularInterfaceExt::FTP_MODE, "1"));
+#endif
 
     // Now connect to the network
     TEST_ASSERT(pDriver->connect(MBED_CONF_APP_DEFAULT_PIN, MBED_CONF_APP_APN,
                                  MBED_CONF_APP_USERNAME, MBED_CONF_APP_PASSWORD) == 0);
 
-    // Log in to the FTP server
-    TEST_ASSERT(pDriver->ftpCommand(UbloxCellularDriverGenAtDataExt::FTP_LOGIN));
+    // Get the server IP address, purely to make sure it's there
+    TEST_ASSERT(pDriver->gethostbyname(MBED_CONF_APP_FTP_SERVER, &address) == 0);
+    tr_debug ("Using FTP \"%s\", which is at %s", MBED_CONF_APP_FTP_SERVER,
+              address.get_ip_address());
+
+    // Log into the FTP server
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_LOGIN) == NULL);
+}
+
+// Test FTP directory listing
+void test_ftp_dir() {
+    // Get a directory listing
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_LS,
+                                    NULL, NULL, 0, buf, sizeof (buf)) == NULL);
+    tr_debug("Listing:\n%s", buf);
+}
+
+// Test FTP file information
+void test_ftp_fileinfo() {
+    // Get the info
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_FILE_INFO,
+                                    MBED_CONF_APP_FTP_FILENAME, NULL, 0,
+                                    buf, sizeof (buf)) == NULL);
+    tr_debug("File info:\n%s", buf);
+}
+
+// Test FTP put and then get
+void test_ftp_put_get() {
+    // Make sure that the 'get' filename we're going to use
+    // isn't already here (but don't assert on this one
+    // as, if the file isn't there, we will get an error)
+    pDriver->delFile(MBED_CONF_APP_FTP_FILENAME "_1");
+
+    // Create the file
+    createFile(MBED_CONF_APP_FTP_FILENAME);
 
     // Put the file
-    //TEST_ASSERT(pDriver->ftpCommand(UbloxCellularDriverGenAtDataExt::FTP_PUT_FILE,
-    //                                MBED_CONF_APP_FILE_NAME));
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_PUT_FILE,
+                                    MBED_CONF_APP_FTP_FILENAME) == NULL);
 
+    // Get the file
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_GET_FILE,
+                                    MBED_CONF_APP_FTP_FILENAME,
+                                    MBED_CONF_APP_FTP_FILENAME "_1") == NULL);
+
+    // Check that it is the same as we sent
+    checkFile(MBED_CONF_APP_FTP_FILENAME "_1");
+}
+
+// Test FTP get
+void test_ftp_get() {
+    // Make sure that the 'get' filename we're going to use
+    // isn't already here (but don't assert on this one
+    // as, if the file isn't there, we will get an error)
+    pDriver->delFile(MBED_CONF_APP_FTP_FILENAME);
+
+    // Get the file
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_GET_FILE,
+                                    MBED_CONF_APP_FTP_FILENAME) == NULL);
+
+    // Check that it has arrived
+    TEST_ASSERT(pDriver->fileSize(MBED_CONF_APP_FTP_FILENAME) > 0);
+}
+
+// Test FTP change directory
+void test_ftp_cd() {
+// TODO
+}
+
+// Test FTP delete file
+void test_ftp_delete() {
+// TODO
+}
+
+// Test FTP rename file
+void test_ftp_rename() {
+// TODO
+}
+
+// Test FTP MKDIR
+void test_ftp_mkdir() {
+    // TODO
+}
+
+// Test FTP FOTA
+void test_ftp_fota() {
+    // TODO
+}
+
+// Test logout and disconnect from an FTP session
+void test_ftp_logout() {
     // Log out from the FTP server
-    TEST_ASSERT(pDriver->ftpCommand(UbloxCellularDriverGenAtDataExt::FTP_LOGOUT));
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_LOGOUT) == NULL);
 
     TEST_ASSERT(pDriver->disconnect() == 0);
-    wait_ms(500); // Wait for printfs to leave the building
-                  // or the test output strings can get messed up
+
+    // Wait for printfs to leave the building or the test result string gets messed up
+    wait_ms(500);
 }
 
 // ----------------------------------------------------------------
@@ -185,7 +319,28 @@ utest::v1::status_t test_setup(const size_t number_of_cases) {
 
 // Test cases
 Case cases[] = {
-    Case("FTP commands", test_ftp_cmd)
+    Case("FTP login", test_ftp_login),
+    Case("FTP dir", test_ftp_dir),
+    Case("FTP file info", test_ftp_fileinfo),
+#if MBED_CONF_APP_FTP_SERVER_SUPPORTS_PUT
+    Case("FTP put", test_ftp_put_get),
+#else
+    Case("FTP get", test_ftp_get),
+#endif
+#ifdef MBED_CONF_APP_FTP_CD_DIRNAME
+    Case("FTP CD", test_ftp_cd),
+#endif
+#ifdef MBED_CONF_APP_FTP_DELETE_FILENAME
+    Case("FTP delete", test_ftp_delete),
+#endif
+#ifdef MBED_CONF_APP_FTP_RENAME_FILENAME
+    Case("FTP rename", test_ftp_rename),
+#endif
+#ifdef MBED_CONF_APP_FTP_MKDIR_DIRNAME
+    Case("FTP MKDIR", test_ftp_mkdir),
+#endif
+    Case("FTP FOTA", test_ftp_fota),
+    Case("FTP logout", test_ftp_logout)
 };
 
 Specification specification(test_setup, cases);

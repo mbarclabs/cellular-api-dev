@@ -13,24 +13,24 @@
  * limitations under the License.
  */
 
-#ifndef _UBLOX_CELLULAR_DRIVER_GEN_AT_DATA_EXT_
-#define _UBLOX_CELLULAR_DRIVER_GEN_AT_DATA_EXT_
+#ifndef _UBLOX_AT_CELLULAR_INTERFACE_EXT_
+#define _UBLOX_AT_CELLULAR_INTERFACE_EXT_
 
-#include "TARGET_UBLOX_MODEM_GENERIC_AT_DATA/ublox_modem_driver/UbloxCellularDriverGenAtData.h"
+#include "ublox_modem_driver/UbloxAtCellularInterface.h"
 #include "UbloxCellularDriverGen.h"
 
-/** UbloxCellularDriverGenAtDataExt class.
+/**UbloxATCellularInterfaceExt class.
  *
- * This interface extends the UbloxCellularInterfaceAtData to
+ * This interface extends the UbloxATCellularInterface to
  * include other features that use the IP stack on board the
- * cellular modem: HTTP and Cell Locate.
+ * cellular modem: HTTP, FTP and Cell Locate.
  *
  * Note: the UbloxCellularGeneric class is required because
  * reading a large HTTP response is performed via a modem
  * file system call and the UbloxCellularGeneric class is
  * where modem file system support is provided.
  */
-class UbloxCellularDriverGenAtDataExt : public UbloxCellularDriverGenAtData, public UbloxCellularDriverGen {
+class UbloxATCellularInterfaceExt : public  UbloxATCellularInterface, public UbloxCellularDriverGen {
 
 public:
     /** Constructor.
@@ -40,14 +40,14 @@ public:
      * @param baud     the UART baud rate.
      * @param debugOn  true to switch AT interface debug on, otherwise false.
      */
-     UbloxCellularDriverGenAtDataExt(PinName tx = MDMTXD,
-                                     PinName rx = MDMRXD,
-                                     int baud = MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
-                                     bool debugOn = false);
+    UbloxATCellularInterfaceExt(PinName tx = MDMTXD,
+                                PinName rx = MDMRXD,
+                                int baud = MBED_CONF_UBLOX_CELL_BAUD_RATE,
+                                bool debugOn = false);
 
      /* Destructor.
       */
-     virtual ~UbloxCellularDriverGenAtDataExt();
+     virtual ~UbloxATCellularInterfaceExt();
 
     /**********************************************************************
      * PUBLIC: General
@@ -56,6 +56,13 @@ public:
     /** Infinite timeout.
      */
     #define TIMEOUT_BLOCKING -1
+
+    /** A struct containing an HTTP or FTP error class and code
+     */
+     typedef struct {
+        int eClass;
+        int eCode;
+    } Error;
 
     /**********************************************************************
      * PUBLIC: HTTP
@@ -194,12 +201,15 @@ public:
      * @param httpCustomPar   the parameter for a user defined HTTP Content-Type.
      * @param buf             the buffer to read into.
      * @param len             the size of the buffer to read into.
-     * @return                true if successful, false otherwise.
+     * @return                NULL if successful, otherwise a pointer to
+     *                        a Error struct containing the error class and error
+     *                        code, see section Appendix A.B of
+     *                        u-blox-ATCommands_Manual(UBX-13002752).pdf for details.
      */
-    bool httpCommand(int httpProfile, HttpCmd httpCmd, const char* httpPath,
-                     const char* rspFile, const char* sendStr,
-                     int httpContentType, const char* httpCustomPar,
-                     char* buf, int len);
+    Error * httpCommand(int httpProfile, HttpCmd httpCmd, const char* httpPath,
+                        const char* rspFile, const char* sendStr,
+                        int httpContentType, const char* httpCustomPar,
+                        char* buf, int len);
 
     /**********************************************************************
      * PUBLIC: FTP
@@ -212,7 +222,7 @@ public:
         FTP_SERVER_NAME = 1,
         FTP_USER_NAME = 2,
         FTP_PASSWORD = 3,
-        FTP_ADDITIONAL_ACCOUNT = 4,
+        FTP_ACCOUNT = 4,
         FTP_INACTIVITY_TIMEOUT = 5,
         FTP_MODE = 6,
         FTP_SERVER_PORT = 7,
@@ -265,7 +275,7 @@ public:
      * FTP_SERVER_NAME        "www.ftpserver.com" (the target FTP server name)
      * FTP_USER_NAME          "my_username"
      * FTP_PASSWORD           "my_password"
-     * FTP_ADDITIONAL_ACCOUNT "my_username2"
+     * FTP_ACCOUNT            "my_account" (not required by most FTP servers)
      * FTP_INACTIVITY_TIMEOUT "60" (the default is 0, which means no timeout)
      * FTP_MODE               "0" for active, "1" for passive (the default is 0) 
      * FTP_SERVER_PORT        "25" (default is port 21)
@@ -290,24 +300,27 @@ public:
      * FTP_LOGIN             N/A        N/A       N/A      N/A     N/A 
      * FTP_DELETE_FILE   "the_file"     N/A       N/A      N/A     N/A 
      * FTP_RENAME_FILE   "old_name"  "new_name"   N/A      N/A     N/A 
-     * FTP_GET_FILE      "the_file"     NULL   0 - 65535   N/A     N/A (Note 1)
-     * FTP_PUT_FILE      "the_file"     NULL   0 - 65535   N/A     N/A (Note 1)
+     * FTP_GET_FILE      "the_file"    Note 1  0 - 65535   N/A     N/A (Notes 2)
+     * FTP_PUT_FILE      "the_file"    Note 1  0 - 65535   N/A     N/A (Note 2)
      * FTP_CD            "dir1\dir2"    N/A       N/A      N/A     N/A 
      * FTP_MKDIR         "newdir"       N/A       N/A      N/A     N/A 
      * FTP_RMDIR         "dir"          N/A       N/A      N/A     N/A 
-     * FTP_FILE_INFO     "the_path"     N/A       N/A         Note 2
-     * FTP_LS            "the_path"     N/A       N/A         Note 2
-     * FTP_FOTA_FILE     "the_file"     N/A       N/A         Note 3
+     * FTP_FILE_INFO     "the_path"     N/A       N/A         Note 3
+     * FTP_LS            "the_path"     N/A       N/A         Note 3
+     * FTP_FOTA_FILE     "the_file"     N/A       N/A         Note 4
      *
-     * Note 1: the file will placed into the modem file system for the
+     * Note 1: for this case, file2 is the name that the file should be
+     * given when it arrives (in the modem file system for a GET, at the FTP
+     * server for a PUT); if set to NULL then file1 is used.
+     * Note 2: the file will placed into the modem file system for the
      * GET case (and can be read with readFile()), or must already be in the
      * modem file system, (can be written using writeFile()) for the PUT case.
-     * Note 2: buf should point to the location where the file info
+     * Note 3: buf should point to the location where the file info
      * or directory listing is to be stored and len should be the maximum
      * length that can be stored.
-     * Note 3: a hex string representing the MD5 sum of the FOTA file will be
+     * Note 4: a hex string representing the MD5 sum of the FOTA file will be
      * stored at buf; len must be at least 32 as an MD5 sum is 16 bytes.
-     * Note 4: FTP_GET_DIRECT and FTP_PUT_DIRECT are not supported by
+     * Note 5: FTP_GET_DIRECT and FTP_PUT_DIRECT are not supported by
      * this driver.
      *
      * @param ftpCmd     the FTP command.
@@ -318,21 +331,13 @@ public:
      * @param buf        pointer to a buffer, required for FTP_DIRECT mode
      *                   and FTP_LS only.
      * @param len        the size of buf.
-     * @return           true if successful, false otherwise.
+     * @return           NULL if successful, otherwise a pointer to
+     *                   a Error struct containing the error class and error
+     *                   code, see section Appendix A.B of
+     *                   u-blox-ATCommands_Manual(UBX-13002752).pdf for details.
      */
-    bool ftpCommand(FtpCmd ftpCmd, const char* file1 = NULL, const char* file2 = NULL,
-                    int offset = 0, char* buf = NULL, int len = 0);
-
-    /** Get the error code for the last FTP operation.
-     *
-     * See section Appendix A.B of u-blox-ATCommands_Manual(UBX-13002752).pdf
-     * for details.
-     *
-     * @param errorClass pointer to an int in which to store the error class.
-     * @param errorCode  pointer to an int in which to store the error code.
-     * @return           true if successful, false otherwise.
-     */
-    bool ftpGetErr(int *errorClass, int* errorCode);
+    Error *ftpCommand(FtpCmd ftpCmd, const char* file1 = NULL, const char* file2 = NULL,
+                      int offset = 0, char* buf = NULL, int len = 0);
 
     /**********************************************************************
      * PUBLIC: Cell Locate
@@ -483,6 +488,7 @@ protected:
          volatile bool pending;
          volatile int cmd;
          volatile int result;
+         Error httpError;
      } HttpProfCtrl;
 
     /** The HTTP profile storage.
@@ -541,6 +547,10 @@ protected:
      */
     int _ftpBufLen;
 
+    /** storage for the last FTP error
+     */
+    Error _ftpError;
+
     /** Callback to capture the result of an FTP command.
      */
     void UUFTPCR_URC();
@@ -590,4 +600,4 @@ protected:
     void UULOC_URC();
 };
 
-#endif // _UBLOX_CELLULAR_DRIVER_GEN_AT_DATA_EXT_
+#endif // _UBLOX_AT_CELLULAR_INTERFACE_EXT_

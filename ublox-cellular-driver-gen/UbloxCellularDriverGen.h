@@ -16,13 +16,13 @@
 #ifndef _UBLOX_CELLULAR_DRIVER_GEN_
 #define _UBLOX_CELLULAR_DRIVER_GEN_
 
-#include "TARGET_UBLOX_MODEM_GENERIC/ublox_modem_driver/UbloxCellularDriverGenBase.h"
+#include "ublox_modem_driver/UbloxCellularBase.h"
 
 /** UbloxCellularDriverGen class
  * This interface provide SMS, USSD and
  * module File System functionality.
  */
-class UbloxCellularDriverGen: virtual public UbloxCellularDriverGenBase {
+class UbloxCellularDriverGen: virtual public UbloxCellularBase {
 
 public:
     /** Constructor.
@@ -33,7 +33,7 @@ public:
      * @param debugOn  true to switch AT interface debug on, otherwise false.
      */
     UbloxCellularDriverGen(PinName tx = MDMTXD, PinName rx = MDMRXD,
-                           int baud = MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
+                           int baud = MBED_CONF_UBLOX_CELL_BAUD_RATE,
                            bool debugOn = false);
 
     /* Destructor.

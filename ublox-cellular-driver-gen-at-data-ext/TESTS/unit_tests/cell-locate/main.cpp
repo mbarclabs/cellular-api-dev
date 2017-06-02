@@ -2,7 +2,7 @@
 #include "greentea-client/test_env.h"
 #include "unity.h"
 #include "utest.h"
-#include "UbloxCellularDriverGenAtDataExt.h"
+#include "UbloxATCellularInterfaceExt.h"
 #include "UDPSocket.h"
 #include "FEATURE_COMMON_PAL/nanostack-libservice/mbed-client-libservice/common_functions.h"
 #include "mbed_trace.h"
@@ -85,10 +85,10 @@ using namespace utest::v1;
 static Mutex mtx;
 
 // An instance of the cellular interface
-static UbloxCellularDriverGenAtDataExt *pDriver =
-       new UbloxCellularDriverGenAtDataExt(MDMTXD, MDMRXD,
-                                           MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
-                                           true);
+static UbloxATCellularInterfaceExt *pDriver =
+       new UbloxATCellularInterfaceExt(MDMTXD, MDMRXD,
+                                       MBED_CONF_UBLOX_CELL_BAUD_RATE,
+                                       true);
 
 // ----------------------------------------------------------------
 // PRIVATE FUNCTIONS
@@ -105,7 +105,7 @@ static void unlock()
     mtx.unlock();
 }
 
-static void printCellLocateData(UbloxCellularDriverGenAtDataExt::CellLocData *pData)
+static void printCellLocateData(UbloxATCellularInterfaceExt::CellLocData *pData)
 {
     char timeString[25];
 
@@ -120,16 +120,16 @@ static void printCellLocateData(UbloxCellularDriverGenAtDataExt::CellLocData *pD
     tr_debug("  speed:              %d metres/second", pData->speed);
     tr_debug("  vertical accuracy:  %d metres/second", pData->speed);
     switch (pData->sensor) {
-        case UbloxCellularDriverGenAtDataExt::CELL_LAST:
+        case UbloxATCellularInterfaceExt::CELL_LAST:
             tr_debug("  sensor type:        last");
             break;
-        case UbloxCellularDriverGenAtDataExt::CELL_GNSS:
+        case UbloxATCellularInterfaceExt::CELL_GNSS:
             tr_debug("  sensor type:        GNSS");
             break;
-        case UbloxCellularDriverGenAtDataExt::CELL_LOCATE:
+        case UbloxATCellularInterfaceExt::CELL_LOCATE:
             tr_debug("  sensor type:        Cell Locate");
             break;
-        case UbloxCellularDriverGenAtDataExt::CELL_HYBRID:
+        case UbloxATCellularInterfaceExt::CELL_HYBRID:
             tr_debug("  sensor type:        hybrid");
             break;
         default:
@@ -146,7 +146,7 @@ static void printCellLocateData(UbloxCellularDriverGenAtDataExt::CellLocData *pD
 // Test Cell Locate talking to a UDP server
 void test_udp_server() {
     int numRes = 0;
-    UbloxCellularDriverGenAtDataExt::CellLocData data;
+    UbloxATCellularInterfaceExt::CellLocData data;
 
     memset(&data, 0, sizeof(data));
     TEST_ASSERT(pDriver->connect(MBED_CONF_APP_DEFAULT_PIN, MBED_CONF_APP_APN,
@@ -154,8 +154,8 @@ void test_udp_server() {
 
     TEST_ASSERT(pDriver->cellLocSrvUdp());
     TEST_ASSERT(pDriver->cellLocConfig(1));
-    TEST_ASSERT(pDriver->cellLocRequest(UbloxCellularDriverGenAtDataExt::CELL_HYBRID, 10, 100,
-                                        (UbloxCellularDriverGenAtDataExt::CellRespType) MBED_CONF_APP_RESP_TYPE,
+    TEST_ASSERT(pDriver->cellLocRequest(UbloxATCellularInterfaceExt::CELL_HYBRID, 10, 100,
+                                        (UbloxATCellularInterfaceExt::CellRespType) MBED_CONF_APP_RESP_TYPE,
                                         MBED_CONF_APP_RESP_MAX_NUM_HYPOTHESIS));
 
     for (int x = 0; (numRes == 0) && (x < 10); x++) {
@@ -170,12 +170,14 @@ void test_udp_server() {
     printCellLocateData(&data);
 
     TEST_ASSERT(pDriver->disconnect() == 0);
+    // Wait for printfs to leave the building or the test result string gets messed up
+    wait_ms(500);
 }
 
 // Test Cell Locate talking to a TCP server
 void test_tcp_server() {
     int numRes = 0;
-    UbloxCellularDriverGenAtDataExt::CellLocData data;
+    UbloxATCellularInterfaceExt::CellLocData data;
 
     memset(&data, 0, sizeof(data));
     TEST_ASSERT(pDriver->connect(MBED_CONF_APP_DEFAULT_PIN, MBED_CONF_APP_APN,
@@ -183,8 +185,8 @@ void test_tcp_server() {
 
     TEST_ASSERT(pDriver->cellLocSrvTcp(MBED_CONF_APP_MGA_TOKEN));
     TEST_ASSERT(pDriver->cellLocConfig(1));
-    TEST_ASSERT(pDriver->cellLocRequest(UbloxCellularDriverGenAtDataExt::CELL_HYBRID, 10, 100,
-                                        (UbloxCellularDriverGenAtDataExt::CellRespType) MBED_CONF_APP_RESP_TYPE,
+    TEST_ASSERT(pDriver->cellLocRequest(UbloxATCellularInterfaceExt::CELL_HYBRID, 10, 100,
+                                        (UbloxATCellularInterfaceExt::CellRespType) MBED_CONF_APP_RESP_TYPE,
                                         MBED_CONF_APP_RESP_MAX_NUM_HYPOTHESIS));
 
     for (int x = 0; (numRes == 0) && (x < 10); x++) {
@@ -199,6 +201,8 @@ void test_tcp_server() {
     printCellLocateData(&data);
 
     TEST_ASSERT(pDriver->disconnect() == 0);
+    // Wait for printfs to leave the building or the test result string gets messed up
+    wait_ms(500);
 }
 
 // Tidy up after testing so as not to screw with the test output strings
