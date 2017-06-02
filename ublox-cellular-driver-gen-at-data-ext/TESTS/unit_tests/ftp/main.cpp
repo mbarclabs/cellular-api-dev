@@ -86,26 +86,6 @@ using namespace utest::v1;
 # define MBED_CONF_APP_FTP_FILE_SIZE 42000
 #endif
 
-// Whether the server supports FTP put or not
-#ifndef MBED_CONF_APP_FTP_SERVER_SUPPORTS_PUT
-# define MBED_CONF_APP_FTP_SERVER_SUPPORTS_PUT false
-#endif
-
-// Whether the server supports file delete or not
-#ifndef MBED_CONF_APP_FTP_SERVER_SUPPORTS_DELETE
-# define MBED_CONF_APP_FTP_SERVER_SUPPORTS_DELETE false
-#endif
-
-// Whether the server supports file renaming or not
-#ifndef MBED_CONF_APP_FTP_SERVER_SUPPORTS_RENAME
-# define MBED_CONF_APP_FTP_SERVER_SUPPORTS_RENAME false
-#endif
-
-// Whether the server supports MKDIR or not
-#ifndef MBED_CONF_APP_FTP_SERVER_SUPPORTS_MKDIR
-# define MBED_CONF_APP_FTP_SERVER_SUPPORTS_MKDIR false
-#endif
-
 // ----------------------------------------------------------------
 // PRIVATE VARIABLES
 // ----------------------------------------------------------------
@@ -221,6 +201,12 @@ void test_ftp_dir() {
     TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_LS,
                                     NULL, NULL, 0, buf, sizeof (buf)) == NULL);
     tr_debug("Listing:\n%s", buf);
+
+#ifdef MBED_CONF_APP_FTP_CD_DIRNAME
+    // If one of these is defined, it should appear in the directory listing
+    TEST_ASSERT(strstr(buf, MBED_CONF_APP_FTP_CD_DIRNAME) > 0);
+#endif
+
 }
 
 // Test FTP file information
@@ -230,8 +216,12 @@ void test_ftp_fileinfo() {
                                     MBED_CONF_APP_FTP_FILENAME, NULL, 0,
                                     buf, sizeof (buf)) == NULL);
     tr_debug("File info:\n%s", buf);
+
+    // The file info string should at least include the file name
+    TEST_ASSERT(strstr(buf, MBED_CONF_APP_FTP_FILENAME) > 0);
 }
 
+#if MBED_CONF_APP_FTP_SERVER_SUPPORTS_PUT
 // Test FTP put and then get
 void test_ftp_put_get() {
     // Make sure that the 'get' filename we're going to use
@@ -254,6 +244,7 @@ void test_ftp_put_get() {
     // Check that it is the same as we sent
     checkFile(MBED_CONF_APP_FTP_FILENAME "_1");
 }
+#endif
 
 // Test FTP get
 void test_ftp_get() {
@@ -270,30 +261,77 @@ void test_ftp_get() {
     TEST_ASSERT(pDriver->fileSize(MBED_CONF_APP_FTP_FILENAME) > 0);
 }
 
+#ifdef MBED_CONF_APP_FTP_CD_DIRNAME
 // Test FTP change directory
 void test_ftp_cd() {
-// TODO
-}
+    // Get a directory listing
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_LS,
+                                    NULL, NULL, 0, buf, sizeof (buf)) == NULL);
+    tr_debug("Listing:\n%s", buf);
 
+    // The listing should include the directory name we are going to move to
+    TEST_ASSERT(strstr(buf, MBED_CONF_APP_FTP_CD_DIRNAME) > 0);
+
+    // Change directories
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_CD,
+                                    MBED_CONF_APP_FTP_CD_DIRNAME) == NULL);
+    // Get a directory listing
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_LS,
+                                    NULL, NULL, 0, buf, sizeof (buf)) == NULL);
+    tr_debug("Listing:\n%s", buf);
+
+    // The listing should no longer include the directory name we have moved to
+    TEST_ASSERT(strstr(buf, MBED_CONF_APP_FTP_FILENAME) == 0);
+
+    // Go back to where we were
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_CD, "..")
+                == NULL);
+
+    // Get a directory listing
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_LS,
+                                    NULL, NULL, 0, buf, sizeof (buf)) == NULL);
+    tr_debug("Listing:\n%s", buf);
+
+    // The listing should include the directory name we went to once more
+    TEST_ASSERT(strstr(buf, MBED_CONF_APP_FTP_CD_DIRNAME) > 0);
+}
+#endif
+
+#ifdef MBED_CONF_APP_FTP_DELETE_FILENAME
 // Test FTP delete file
 void test_ftp_delete() {
 // TODO
 }
+#endif
 
+#ifdef MBED_CONF_APP_FTP_RENAME_FILENAME
 // Test FTP rename file
 void test_ftp_rename() {
 // TODO
 }
+#endif
 
+#ifdef MBED_CONF_APP_FTP_MKDIR_DIRNAME
 // Test FTP MKDIR
 void test_ftp_mkdir() {
     // TODO
 }
+#endif
 
+#ifdef MBED_CONF_APP_FTP_FOTA_FILENAME
 // Test FTP FOTA
 void test_ftp_fota() {
-    // TODO
+    *buf = 0;
+    // Do FOTA on a file
+    TEST_ASSERT(pDriver->ftpCommand(UbloxATCellularInterfaceExt::FTP_FOTA_FILE,
+                                    MBED_CONF_APP_FTP_FOTA_FILENAME, NULL,
+                                    0, buf, sizeof (buf)) == NULL);
+    tr_debug("MD5 sum: %s\n", buf);
+
+    // Check that the 128 bit MD5 sum is now there
+    TEST_ASSERT(strlen (buf) == 32);
 }
+#endif
 
 // Test logout and disconnect from an FTP session
 void test_ftp_logout() {
@@ -319,16 +357,16 @@ utest::v1::status_t test_setup(const size_t number_of_cases) {
 
 // Test cases
 Case cases[] = {
-    Case("FTP login", test_ftp_login),
-    Case("FTP dir", test_ftp_dir),
+    Case("FTP log in", test_ftp_login),
+    Case("FTP directory list", test_ftp_dir),
     Case("FTP file info", test_ftp_fileinfo),
 #if MBED_CONF_APP_FTP_SERVER_SUPPORTS_PUT
-    Case("FTP put", test_ftp_put_get),
+    Case("FTP put and get", test_ftp_put_get),
 #else
     Case("FTP get", test_ftp_get),
 #endif
 #ifdef MBED_CONF_APP_FTP_CD_DIRNAME
-    Case("FTP CD", test_ftp_cd),
+    Case("FTP change directory", test_ftp_cd),
 #endif
 #ifdef MBED_CONF_APP_FTP_DELETE_FILENAME
     Case("FTP delete", test_ftp_delete),
@@ -337,10 +375,12 @@ Case cases[] = {
     Case("FTP rename", test_ftp_rename),
 #endif
 #ifdef MBED_CONF_APP_FTP_MKDIR_DIRNAME
-    Case("FTP MKDIR", test_ftp_mkdir),
+    Case("FTP make directory", test_ftp_mkdir),
 #endif
+#ifdef MBED_CONF_APP_FTP_FOTA_FILENAME
     Case("FTP FOTA", test_ftp_fota),
-    Case("FTP logout", test_ftp_logout)
+#endif
+    Case("FTP log out", test_ftp_logout)
 };
 
 Specification specification(test_setup, cases);

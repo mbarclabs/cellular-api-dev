@@ -48,6 +48,7 @@ using namespace utest::v1;
 // The HTTP echo server, as described in the
 // first answer here:
 // http://stackoverflow.com/questions/5725430/http-test-server-that-accepts-get-post-calls
+// !!! IMPORTANT: this test relies on that server behaving in the same way forever !!!
 #define HTTP_ECHO_SERVER "httpbin.org"
 
 // The size of the test file
@@ -158,7 +159,7 @@ void test_http_cmd() {
     pDriver->delFile("post_test.txt");
     TEST_ASSERT(pDriver->writeFile("post_test.txt", buf, TEST_FILE_SIZE) == TEST_FILE_SIZE);
 
-    // This may fail if rsp.txt happens to be sitting around from a previous run
+    // This may fail if rsp.txt doesn't happen to be sitting around from a previous run
     // so don't check the return value
     pDriver->delFile("rsp.txt");
 

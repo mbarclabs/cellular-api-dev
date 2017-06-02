@@ -320,6 +320,7 @@ public:
      * length that can be stored.
      * Note 4: a hex string representing the MD5 sum of the FOTA file will be
      * stored at buf; len must be at least 32 as an MD5 sum is 16 bytes.
+     * FTP_FOTA_FILE is not supported on SARA-U2.
      * Note 5: FTP_GET_DIRECT and FTP_PUT_DIRECT are not supported by
      * this driver.
      *

@@ -48,13 +48,13 @@ using namespace utest::v1;
 # define MBED_CONF_APP_PASSWORD    NULL
 #endif
 
-#ifndef MBED_CONF_APP_RUN_TCP_SERVER_TEST
-#  define MBED_CONF_APP_RUN_TCP_SERVER_TEST 0
+#ifndef MBED_CONF_APP_RUN_CELL_LOCATE_TCP_SERVER_TEST
+#  define MBED_CONF_APP_RUN_CELL_LOCATE_TCP_SERVER_TEST 0
 #endif
 
 // The authentication token for TCP access to the MGA server.
-#if MBED_CONF_APP_RUN_TCP_SERVER_TEST
-#  ifndef MBED_CONF_APP_MGA_TOKEN
+#if MBED_CONF_APP_RUN_CELL_LOCATE_TCP_SERVER_TEST
+#  ifndef MBED_CONF_APP_CELL_LOCATE_MGA_TOKEN
 #    error "You must have a token for MGA server access to run Cell Locate with a TCP server"
 #  endif
 #endif
@@ -65,16 +65,16 @@ using namespace utest::v1;
 #endif
 
 // The maximum number of hypotheses requested
-#ifndef MBED_CONF_APP_RESP_MAX_NUM_HYPOTHESIS
+#ifndef MBED_CONF_APP_CELL_LOCATE_MAX_NUM_HYPOTHESIS
 #  if MBED_CONF_APP_RESP_TYPE == 2 // CELL_MULTIHYP
-#    define MBED_CONF_APP_RESP_MAX_NUM_HYPOTHESIS 16
+#    define MBED_CONF_APP_CELL_LOCATE_MAX_NUM_HYPOTHESIS 16
 #  else
-#    define MBED_CONF_APP_RESP_MAX_NUM_HYPOTHESIS 1
+#    define MBED_CONF_APP_CELL_LOCATE_MAX_NUM_HYPOTHESIS 1
 #  endif
 #endif
 
-#ifndef MBED_CONF_APP_MGA_TOKEN
-#  define MBED_CONF_APP_MGA_TOKEN "0"
+#ifndef MBED_CONF_APP_CELL_LOCATE_MGA_TOKEN
+#  define MBED_CONF_APP_CELL_LOCATE_MGA_TOKEN "0"
 #endif
 
 // ----------------------------------------------------------------
@@ -156,7 +156,7 @@ void test_udp_server() {
     TEST_ASSERT(pDriver->cellLocConfig(1));
     TEST_ASSERT(pDriver->cellLocRequest(UbloxATCellularInterfaceExt::CELL_HYBRID, 10, 100,
                                         (UbloxATCellularInterfaceExt::CellRespType) MBED_CONF_APP_RESP_TYPE,
-                                        MBED_CONF_APP_RESP_MAX_NUM_HYPOTHESIS));
+                                        MBED_CONF_APP_CELL_LOCATE_MAX_NUM_HYPOTHESIS));
 
     for (int x = 0; (numRes == 0) && (x < 10); x++) {
         numRes = pDriver->cellLocGetRes();
@@ -183,11 +183,11 @@ void test_tcp_server() {
     TEST_ASSERT(pDriver->connect(MBED_CONF_APP_DEFAULT_PIN, MBED_CONF_APP_APN,
                                  MBED_CONF_APP_USERNAME, MBED_CONF_APP_PASSWORD) == 0);
 
-    TEST_ASSERT(pDriver->cellLocSrvTcp(MBED_CONF_APP_MGA_TOKEN));
+    TEST_ASSERT(pDriver->cellLocSrvTcp(MBED_CONF_APP_CELL_LOCATE_MGA_TOKEN));
     TEST_ASSERT(pDriver->cellLocConfig(1));
     TEST_ASSERT(pDriver->cellLocRequest(UbloxATCellularInterfaceExt::CELL_HYBRID, 10, 100,
                                         (UbloxATCellularInterfaceExt::CellRespType) MBED_CONF_APP_RESP_TYPE,
-                                        MBED_CONF_APP_RESP_MAX_NUM_HYPOTHESIS));
+                                        MBED_CONF_APP_CELL_LOCATE_MAX_NUM_HYPOTHESIS));
 
     for (int x = 0; (numRes == 0) && (x < 10); x++) {
         numRes = pDriver->cellLocGetRes();
@@ -224,7 +224,7 @@ utest::v1::status_t test_setup(const size_t number_of_cases) {
 // Test cases
 Case cases[] = {
     Case("Cell Locate with UDP server", test_udp_server),
-#if MBED_CONF_APP_RUN_TCP_SERVER_TEST
+#if MBED_CONF_APP_RUN_CELL_LOCATE_TCP_SERVER_TEST
     Case("Cell Locate with TCP server", test_tcp_server),
 #endif
     Case("Tidy up", test_tidy_up)

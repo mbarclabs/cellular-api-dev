@@ -780,6 +780,8 @@ UbloxATCellularInterfaceExt::Error * UbloxATCellularInterfaceExt::ftpCommand(Ftp
             break;
         case FTP_FILE_INFO:
         case FTP_LS:
+            _ftpBuf = buf;
+            _ftpBufLen = len;
             if (file1 == NULL) {
                 atSuccess = _at->send("AT+UFTPC=%d", ftpCmd) &&
                             _at->recv("OK");
@@ -829,6 +831,10 @@ UbloxATCellularInterfaceExt::Error * UbloxATCellularInterfaceExt::ftpCommand(Ftp
             debug_if(_debug_trace_on, "%s: ERROR\n", getFtpCmd(ftpCmd));
         }
     }
+
+    // Set these back to nothing to stop the URC splatting
+    _ftpBuf = NULL;
+    _ftpBufLen = 0;
 
     UNLOCK();
     return success ? NULL : &_ftpError;
