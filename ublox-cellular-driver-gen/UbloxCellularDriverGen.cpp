@@ -645,57 +645,77 @@ int UbloxCellularDriverGen::writeFile(const char* filename, const char* buf, int
 }
 
 // Read a file from the module's file system
+// Note: this is implemented with block reads since UARTSerial
+// does not currently allow flow control and there is a danger
+// of character loss with large whole-file reads
 int UbloxCellularDriverGen::readFile(const char* filename, char* buf, int len)
 {
     int countBytes = -1;  // Counter for file reading (default value)
     int bytesToRead = fileSize(filename);  // Retrieve the size of the file
     int offset = 0;
-    int blockSize = 128;
-    char respFilename[48];
-    char * tmpBuf = NULL;
-    int sz;
+    int blockSize = FILE_BUFFER_SIZE;
+    char respFilename[48 + 1];
+    int sz, sz_read;
     bool success = true;
+    int ch = 0;
+    int timeLimit;
+    Timer timer;
 
     debug_if(_debug_trace_on, "readFile: filename is %s; size is %d\n", filename, bytesToRead);
 
+    memset(respFilename, 0, sizeof (respFilename));  // Ensure terminator
     if (bytesToRead > 0)
     {
         if (bytesToRead > len) {
             bytesToRead = len;
         }
 
-        tmpBuf = (char *) malloc(blockSize + 2); // +2 to allow for quotes
-        if (tmpBuf != NULL) {
-            while (success && (bytesToRead > 0)) {
+        while (success && (bytesToRead > 0)) {
 
-                if (bytesToRead < blockSize) {
-                    blockSize = bytesToRead;
-                }
-                LOCK();
-
-                if (blockSize > 0) {
-                    if (_at->send("AT+URDBLOCK=\"%s\",%d,%d\r\n", filename, offset, blockSize) &&
-                        _at->recv("+URDBLOCK: \"%[^\"]\",%d,", respFilename, &sz)) {
-                        if ((_at->read(tmpBuf, sz + 2) >= sz + 2) && // +2 for quotes
-                            (tmpBuf[0] == '\"') && (tmpBuf[sz + 1] == '\"')) {
-                            memcpy (buf, tmpBuf + 1, sz);
-                            bytesToRead -= sz;
-                            offset += sz;
-                            buf += sz;
-                            _at->recv("OK");
-                        } else {
-                            success = false;
-                        }
-                   } else {
-                       success = false;
-                   }
-                }
-
-                UNLOCK();
+            if (bytesToRead < blockSize) {
+                blockSize = bytesToRead;
             }
-        }
+            LOCK();
 
-        free(tmpBuf);
+            if (blockSize > 0) {
+                if (_at->send("AT+URDBLOCK=\"%s\",%d,%d\r\n", filename, offset, blockSize) &&
+                    _at->recv("+URDBLOCK: \"%48[^\"]\",%d,\"", respFilename, &sz) &&
+                    (strcmp(filename, respFilename) == 0)) {
+
+                    // Would use _at->read() here, but if it runs ahead of the
+                    // serial stream it returns -1 instead of the number of characters
+                    // read so far, which is not very helpful so instead use _at->getc() and
+                    // a time limit. The time limit is twice the amount of time it should take to
+                    // read the block at the working baud rate
+                    timer.reset();
+                    timer.start();
+                    timeLimit = blockSize * 2 / ((MBED_CONF_UBLOX_CELL_BAUD_RATE / 8) / 1000);
+                    sz_read = 0;
+                    while ((sz_read < blockSize) && (timer.read_ms() < timeLimit)) {
+                        ch = _at->getc();
+                        if (ch >= 0) {
+                            *buf = ch;
+                            buf++;
+                            sz_read++;
+                        }
+                    }
+                    timer.stop();
+
+                    if (sz_read == blockSize) {
+                        bytesToRead -= sz_read;
+                        offset += sz_read;
+                        _at->recv("OK");
+                    } else {
+                        debug_if(_debug_trace_on, "blockSize %d but only received %d bytes\n", blockSize, sz_read);
+                        success = false;
+                    }
+               } else {
+                   success = false;
+               }
+            }
+
+            UNLOCK();
+        }
 
         if (success) {
             countBytes = offset;

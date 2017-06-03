@@ -253,8 +253,17 @@ protected:
      **********************************************************************/
 
     /** The maximum size of a single read of file data.
+     * Note: this should be no larger than BUFFERED_SERIAL_RXBUF_SIZE
+     * (which defaults to 256) minus some margin for the AT command
+     * stuff that precedes it (which includes the filename).  A good
+     * number is 192.  If you want to use something bigger then add an
+     * entry to the target_overrides section of your mbed_app.json of the
+     * following form:
+     *
+     * "platform.buffered-serial-rxbuf-size": 1024
      */
-    #define FILE_BUFFER_SIZE 128
+
+    #define FILE_BUFFER_SIZE 192
 };
 
 #endif // _UBLOX_CELLULAR_DRIVER_GEN_

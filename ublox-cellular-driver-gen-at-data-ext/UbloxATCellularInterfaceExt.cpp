@@ -782,6 +782,10 @@ UbloxATCellularInterfaceExt::Error * UbloxATCellularInterfaceExt::ftpCommand(Ftp
         case FTP_LS:
             _ftpBuf = buf;
             _ftpBufLen = len;
+            // Add a terminator in case nothing comes back
+            if (_ftpBufLen > 0) {
+                *_ftpBuf = 0;
+            }
             if (file1 == NULL) {
                 atSuccess = _at->send("AT+UFTPC=%d", ftpCmd) &&
                             _at->recv("OK");
@@ -803,7 +807,6 @@ UbloxATCellularInterfaceExt::Error * UbloxATCellularInterfaceExt::ftpCommand(Ftp
         _lastFtpOpCodeData = FTP_OP_CODE_UNUSED;
         _lastFtpOpCodeResult = FTP_OP_CODE_UNUSED;
         _lastFtpResult = -1; // just for safety
-
         // Waiting for result to arrive
         timer.start();
         while ((_lastFtpOpCodeResult == FTP_OP_CODE_UNUSED) &&
