@@ -1,0 +1,52 @@
+{
+    "config": {
+        "buffer-size": { "value": 0 },
+        "platform": { "help": "Options: UBLOX, MTS_DRAGONFLY",
+                      "value": "UBLOX"},
+        "ftp-server": {
+            "help": "An FTP server to use when running the FTP tests",
+            "value": "\"test.rebex.net\""
+        },
+        "ftp-username": {
+            "help": "The user name for the FTP server account",
+            "value": "\"demo\""
+        },
+        "ftp-password": {
+            "help": "The password for the FTP server account",
+            "value": "\"password\""
+        },
+        "ftp-use-passive": {
+            "help": "Set to true to use passive mode, otherwise false (defaults to true, since this is needed for most cases)",
+            "value": true
+        },
+        "ftp-server-supports-write": {
+            "help": "Set to true if the FTP server supports PUT, rename, MKDIR and delete, otherwise set to false",
+            "value": false
+        },
+        "ftp-filename": {
+            "help": "A filename to use during FTP tests.  This file must already exist on the server if the server does not support write",
+            "value": "\"readme.txt\""
+        },
+        "ftp-dirname": {
+            "help": "A directory name to yse during FTP tests.  This directory must already exist on the server if the server does not support write",
+            "value": "\"pub\""
+        }
+     },
+    "target_overrides": {
+        "*": {
+            "lwip.ipv4-enabled": true,
+            "lwip.ipv6-enabled": false,
+            "lwip.ethernet-enabled": false,
+            "lwip.ppp-enabled": true,
+            "lwip.tcp-enabled": true,
+            "target.features_add": ["LWIP", "COMMON_PAL"],
+            "platform.stdio-convert-newlines": true,
+            "platform.stdio-baud-rate": 9600,
+            "platform.default-serial-baud-rate": 115200, 
+            "lwip.debug-enabled": false,
+            "lwip.enable-ppp-trace": false,
+            "lwip.use-mbed-trace": false,
+            "mbed-trace.enable": 1
+        }
+    }
+}

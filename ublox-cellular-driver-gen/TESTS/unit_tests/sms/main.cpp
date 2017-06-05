@@ -37,12 +37,12 @@ using namespace utest::v1;
 // to the instruction given in the messages.
 // IMPORTANT: spaces in the string are NOT allowed
 #ifndef MBED_CONF_APP_SMS_DESTINATION
-# define MBED_CONF_APP_SMS_DESTINATION "+447767331031"
+# error "Must define a destination number to use for SMS testing (and someone must be there to reply); the number must contain no spaces and should be in international format"
 #endif
 
 // The message to send.
 #ifndef MBED_CONF_APP_SMS_SEND_CONTENTS
-# define MBED_CONF_APP_SMS_SEND_CONTENTS "Please reply to this message in 60 seconds with the single word ACK (in upper case)."
+# define MBED_CONF_APP_SMS_SEND_CONTENTS "Please reply to this message within 60 seconds with the single word ACK (in upper case)."
 #endif
 
 // The number of milliseconds to wait for a reply to the sent SMS.
@@ -65,7 +65,7 @@ static Mutex mtx;
 // An instance of the generic cellular class
 static UbloxCellularDriverGen *pDriver =
        new UbloxCellularDriverGen(MDMTXD, MDMRXD,
-                                  MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
+                                  MBED_CONF_UBLOX_CELL_BAUD_RATE,
                                   true);
 
 // ----------------------------------------------------------------
@@ -123,7 +123,7 @@ void test_receive() {
 
     TEST_ASSERT(pDriver->smsRead(index, num, buf, sizeof (buf)));
     tr_debug("Received: \"%.*s\"", sizeof (buf), buf);
-    TEST_ASSERT (strstr(buf, MBED_CONF_APP_SMS_RECEIVE_CONTENTS) > 0);
+    TEST_ASSERT (strstr(buf, MBED_CONF_APP_SMS_RECEIVE_CONTENTS) != NULL);
 
     // Delete the message and check that it's gone
     numSms = pDriver->smsList();

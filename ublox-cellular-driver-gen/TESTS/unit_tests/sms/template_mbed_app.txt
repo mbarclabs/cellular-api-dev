@@ -1,0 +1,17 @@
+{
+    "config": {
+        "sms-destination": {
+            "help": "The destination number to use for SMS testing (someone must be there to reply); the number must contain no spaces and should be in international format",
+            "value": "\"+6601234567890\""
+        }        
+     },
+    "target_overrides": {
+        "*": {
+            "target.features_add": ["COMMON_PAL"],
+            "platform.stdio-convert-newlines": true,
+            "platform.stdio-baud-rate": 9600,
+            "platform.default-serial-baud-rate": 115200, 
+            "mbed-trace.enable": 1
+        }
+    }
+}

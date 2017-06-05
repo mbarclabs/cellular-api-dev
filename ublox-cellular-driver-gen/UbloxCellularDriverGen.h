@@ -203,18 +203,17 @@ protected:
      */
     int _smsCount;
 
+    /** Temporary storage for an SMS message.
+     */
+    char _smsBuf[SMS_BUFFER_SIZE];
+
     /** URC for Short Message listing.
      */
     void CMGL_URC();
 
-    /** URC for new class 0 SMS messages.
+    /** URC for new SMS messages.
      */
     void CMTI_URC();
-
-    /** URC for non-class 0 SMS messages.
-     */
-    void CMT_URC();
-
 
     /**********************************************************************
      * PROTECTED: Unstructured Supplementary Service Data

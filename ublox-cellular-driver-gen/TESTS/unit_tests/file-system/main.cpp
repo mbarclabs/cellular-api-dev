@@ -53,7 +53,7 @@ static Mutex mtx;
 // An instance of the generic cellular class
 static UbloxCellularDriverGen *pDriver =
        new UbloxCellularDriverGen(MDMTXD, MDMRXD,
-                                  MBED_CONF_UBLOX_CELL_GEN_DRV_BAUD_RATE,
+                                  MBED_CONF_UBLOX_CELL_BAUD_RATE,
                                   true);
 
 // A general purpose buffer

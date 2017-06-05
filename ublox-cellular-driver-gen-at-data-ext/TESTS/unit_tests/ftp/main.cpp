@@ -19,9 +19,30 @@ using namespace utest::v1;
 //
 //{
 //    "config": {
-//        "apn": {
-//            "value": "\"my_apn\""
-//        }
+//      "apn": {
+//          "value": "\"my_apn\""
+//      },
+//      "ftp-server": {
+//          "value": "\"test.rebex.net\""
+//      },
+//      "ftp-username": {
+//          "value": "\"demo\""
+//      },
+//      "ftp-password": {
+//          "value": "\"password\""
+//      },
+//      "ftp-use-passive": {
+//          "value": true
+//      },
+//      "ftp-server-supports-write": {
+//          "value": false
+//      },
+//      "ftp-filename": {
+//          "value": "\"readme.txt\""
+//      },
+//      "ftp-dirname": {
+//          "value": "\"pub\""
+//      }
 //}
 
 // The credentials of the SIM in the board.
@@ -370,7 +391,7 @@ void test_ftp_rmdir() {
     TEST_ASSERT(strstr(buf,  MBED_CONF_APP_FTP_DIRNAME) == NULL);
 }
 
-#endif // MBED_CONF_APP_FTP_SERVER_SUPPORTS_PUT
+#endif // MBED_CONF_APP_FTP_SERVER_SUPPORTS_WRITE
 
 // Test FTP get
 void test_ftp_get() {

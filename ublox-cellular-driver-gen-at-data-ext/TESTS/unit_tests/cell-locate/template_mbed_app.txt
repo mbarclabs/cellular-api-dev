@@ -1,0 +1,32 @@
+{
+    "config": {
+        "buffer-size": { "value": 0 },
+        "platform": { "help": "Options: UBLOX, MTS_DRAGONFLY",
+                      "value": "UBLOX"},
+        "cell-locate-mga-token": {
+            "help": "Your Cell Locate MGA token, required for TCP testing.  A tokane can be obtained from https://www.u-blox.com/en/assistnow-service-registration-form",
+            "value": "\"mymgatoken\""
+        },
+        "run-cell-locate-tcp-server-test": {
+            "help": "Set to true to run tests over TCP as well as over UDP",
+            "value": 1
+        }
+     },
+    "target_overrides": {
+        "*": {
+            "lwip.ipv4-enabled": true,
+            "lwip.ipv6-enabled": false,
+            "lwip.ethernet-enabled": false,
+            "lwip.ppp-enabled": true,
+            "lwip.tcp-enabled": true,
+            "target.features_add": ["LWIP", "COMMON_PAL"],
+            "platform.stdio-convert-newlines": true,
+            "platform.stdio-baud-rate": 9600,
+            "platform.default-serial-baud-rate": 115200, 
+            "lwip.debug-enabled": false,
+            "lwip.enable-ppp-trace": false,
+            "lwip.use-mbed-trace": false,
+            "mbed-trace.enable": 1
+        }
+    }
+}
